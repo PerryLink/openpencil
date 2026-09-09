@@ -14,7 +14,8 @@ make_fixture() {
     local root=$1
     mkdir -p "$root/desktop" "$root/cli" "$root/sdk" "$root/vsix" "$root/android"
     printf 'desktop\n' > "$root/desktop/openpencil-desktop-linux-x86_64.tar.gz"
-    for asset in OpenPencil-0.8.5-x64-win-setup.exe openpencil-desktop-windows-x86_64.zip \
+    for asset in OpenPencil-0.8.5-x64-win-setup.exe OpenPencil-0.8.5-arm64-win-setup.exe \
+        openpencil-desktop-windows-x86_64.zip \
         OpenPencil-0.8.5-arm64-mac.dmg OpenPencil-0.8.5-x64-linux.deb OpenPencil-0.8.5-x64-linux.AppImage; do
         printf 'desktop-%s\n' "$asset" > "$root/desktop/$asset"
     done
@@ -65,12 +66,17 @@ make_fixture "$valid"
 test -f "$temporary/release/OpenPencil-0.8.5-android.apk"
 test -f "$temporary/release/OpenPencil-0.8.5-android.aab"
 test ! -e "$temporary/release/internal-build.log"
+# Both Windows installers remain standalone release assets.
+test -f "$temporary/release/OpenPencil-0.8.5-x64-win-setup.exe"
+test -f "$temporary/release/OpenPencil-0.8.5-arm64-win-setup.exe"
 
 with_daemons=$temporary/with-daemons
 make_fixture "$with_daemons"
 make_daemon_handoffs "$with_daemons"
 "$helper" "$with_daemons/" "$temporary/daemon-free-release" 0.8.5 >/dev/null
 diff -r "$temporary/release" "$temporary/daemon-free-release"
+test ! -e "$temporary/daemon-free-release/op-host-web-server"
+test ! -e "$temporary/daemon-free-release/op-host-web-server.exe"
 for label in linux-aarch64 linux-x86_64 macos-aarch64 macos-x86_64 windows-aarch64 windows-x86_64; do
     binary=op-host-web-server
     case "$label" in windows-*) binary=$binary.exe;; esac
