@@ -119,6 +119,7 @@ mod git_press;
 mod helpers;
 mod history_guard;
 mod home;
+mod home_overlays;
 mod home_scroll;
 mod host_lifecycle;
 mod host_requests;

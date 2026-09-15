@@ -56,13 +56,19 @@ impl WidgetHostNative {
             self.editor_state.editor_ui.home.shown_at_ms = self.now_ms;
         }
         if let Some(home) = HomeSurface::for_editor_at(&self.editor_state, self.now_ms) {
-            let mut cx = PaintCx {
-                backend: &mut *frame,
-            };
-            home.paint(
-                &mut cx,
-                Rect::xywh(0.0, 0.0, viewport_width, viewport_height),
-            );
+            {
+                let mut cx = PaintCx {
+                    backend: &mut *frame,
+                };
+                home.paint(
+                    &mut cx,
+                    Rect::xywh(0.0, 0.0, viewport_width, viewport_height),
+                );
+            }
+            // The overlays Home opens (settings modal, sign-in modal,
+            // model picker) paint above the takeover — mirroring the
+            // z-order `paint_topmost_overlays` gives them elsewhere.
+            self.paint_home_overlays(frame, viewport_width, viewport_height);
             return;
         }
         // The post-generation result view is the same kind of full-surface
@@ -648,29 +654,8 @@ impl WidgetHostNative {
         }
 
         // 10e. Sign-in modal — full-viewport scrim + centred card.
-        if !touch_presenting
-            && (ui.account_ui_available || ui.touch_chrome())
-            && ui.login_modal_open
-        {
-            use op_editor_ui::widgets::login_modal::LoginModal;
-            frame.fill_rect(
-                Rect {
-                    origin: Point2D::new(0.0, 0.0),
-                    size: Point2D::new(viewport_width, viewport_height),
-                },
-                op_editor_ui::Color {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.45,
-                },
-            );
-            let modal = LoginModal::for_editor(&self.editor_state);
-            let modal_rect = modal.rect(viewport_width, viewport_height);
-            let mut cx = PaintCx {
-                backend: &mut *frame,
-            };
-            modal.paint(&mut cx, modal_rect);
+        if !touch_presenting {
+            self.paint_login_modal_overlay(frame, viewport_width, viewport_height);
         }
 
         // 10f. Signed-in account dropdown — anchored under the TopBar
@@ -692,26 +677,8 @@ impl WidgetHostNative {
         }
 
         // 10a. Agent-settings modal — top-most overlay when open.
-        if !touch_presenting && ui.agent_settings_open {
-            // Dim scrim across the full viewport.
-            let scrim_color = op_editor_ui::Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.45,
-            };
-            frame.fill_rect(
-                Rect {
-                    origin: Point2D::new(0.0, 0.0),
-                    size: Point2D::new(viewport_width, viewport_height),
-                },
-                scrim_color,
-            );
-            let (panel, panel_rect) = self.agent_settings_geometry(viewport_width, viewport_height);
-            let mut cx = PaintCx {
-                backend: &mut *frame,
-            };
-            panel.paint(&mut cx, panel_rect);
+        if !touch_presenting {
+            self.paint_agent_settings_modal_overlay(frame, viewport_width, viewport_height);
         }
 
         // 10b. Color picker — floating overlay near the right rail.

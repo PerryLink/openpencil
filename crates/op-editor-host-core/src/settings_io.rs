@@ -72,6 +72,7 @@ pub struct Fingerprint {
     active_image_gen_profile_id: Option<String>,
     preferred_agent_team_size: u32,
     entry_surface: op_editor_core::EntrySurface,
+    chat_agent: String,
 }
 
 pub fn fingerprint(state: &EditorState) -> Fingerprint {
@@ -94,7 +95,31 @@ pub fn fingerprint(state: &EditorState) -> Fingerprint {
         active_image_gen_profile_id: eui.agent_settings.active_image_gen_profile_id.clone(),
         preferred_agent_team_size: eui.preferred_agent_team_size,
         entry_surface: eui.entry_surface,
+        chat_agent: selected_chat_agent_name(eui),
     }
+}
+
+/// The persisted identity of the selected chat agent — its stable
+/// provider NAME, never its index: `AgentProvider::ALL` is append-only
+/// but new entries still shift nothing, whereas any future re-ordering
+/// would silently re-map every persisted index. An out-of-range
+/// selection falls back to the first provider's name.
+fn selected_chat_agent_name(eui: &op_editor_core::EditorUiState) -> String {
+    op_editor_core::AgentProvider::ALL
+        .get(eui.chat_selected_agent)
+        .map(|provider| provider.name())
+        .unwrap_or(op_editor_core::AgentProvider::ALL[0].name())
+        .to_string()
+}
+
+/// Resolve a persisted agent name back to its `AgentProvider::ALL`
+/// index; unknown names (a provider renamed or removed by a newer
+/// build) fall back to index 0 rather than dangling.
+fn chat_agent_index_for_name(name: &str) -> usize {
+    op_editor_core::AgentProvider::ALL
+        .iter()
+        .position(|provider| provider.name() == name)
+        .unwrap_or(0)
 }
 
 pub fn save_if_changed(state: &EditorState, before: Fingerprint) {
@@ -159,6 +184,10 @@ struct SettingsPayload {
 /// usable config base exists — load/save become silent no-ops.
 ///
 /// An embedded shell (the mobile FFI hosts) selects its private
+    /// The chat agent's stable provider name (see
+    /// `selected_chat_agent_name`); older settings keep index 0.
+    #[serde(default)]
+    chat_agent: Option<String>,
 /// app-sandbox directory through `op_config_store::configure_user_root`
 /// before engine construction; `settings.json` then lives next to the
 /// other per-user config files in that root. Desktop never configures an
@@ -232,6 +261,7 @@ fn to_payload(state: &EditorState) -> SettingsPayload {
 fn apply_payload(state: &mut EditorState, payload: SettingsPayload) {
     apply_payload_with_options(state, payload, true);
 }
+        chat_agent: Some(selected_chat_agent_name(eui)),
 
 fn apply_payload_with_options(
     state: &mut EditorState,
@@ -344,6 +374,11 @@ fn apply_payload_with_options(
     // app restart (`ChatSessions::new_tab` handles the SAME continuity
     // within a running session, carrying the active tab's current value
     // forward). Captured into a local before the last `eui` use ends the
+    // Restore the chat agent by name — `rebuild_chat_models` further
+    // down re-derives the model catalog against this selection.
+    if let Some(name) = payload.chat_agent.as_deref() {
+        eui.chat_selected_agent = chat_agent_index_for_name(name);
+    }
     // mutable borrow of `state.editor_ui`, so `state.chat` can be written
     // next.
     let preferred_agent_team_size = eui.preferred_agent_team_size;
@@ -514,6 +549,7 @@ struct PendingSettingsFile {
 }
 
 impl PendingSettingsFile {
+            false
     fn file_mut(&mut self) -> &mut std::fs::File {
         self.file
             .as_mut()

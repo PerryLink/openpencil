@@ -120,7 +120,9 @@ impl WidgetHostNative {
             ResultHit::Restyle => {
                 view.hide();
                 // Reopen once the restyle turn finishes, then launch it
-                // through the same three-call pattern as Home's send.
+                // through the same three-call pattern as Home's send —
+                // including the orchestrator pin, so reasoning-budget
+                // models finish the whole-canvas restyle.
                 view.arm_for_generation(
                     view.family.unwrap_or(op_editor_core::HomeFamily::AppUi),
                     view.brief.clone(),
@@ -129,6 +131,7 @@ impl WidgetHostNative {
                 self.editor_state
                     .chat
                     .set_input_text("换一种视觉风格，保持结构、内容和交互不变");
+                self.editor_state.chat.launch_route = op_editor_core::LaunchRoute::Orchestrator;
                 self.editor_state.chat.begin_send();
                 self.editor_state.chat.focused = false;
             }

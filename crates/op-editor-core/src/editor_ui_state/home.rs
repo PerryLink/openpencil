@@ -149,6 +149,16 @@ pub enum HomeHit {
     NewCanvas,
     OpenFile,
     Footer,
+    /// The model chip on the sheet's bottom row.
+    ModelChip,
+    /// The 接入卡's free-tier row.
+    ConnectFreeTier,
+    /// The 接入卡's own-API-key row.
+    ConnectApiKey,
+    /// The 接入卡's local-CLI row.
+    ConnectCli,
+    /// Any press outside the open 接入卡 (or its close affordance).
+    ConnectClose,
 }
 
 /// Transient state for the drafting-table Home surface.
@@ -172,6 +182,9 @@ pub struct HomeState {
     /// remains the public Home contract; this field keeps native text input,
     /// IME, clipboard, and caret edits lossless.
     pub input: TextInputState,
+    /// The "先接入一个模型" connect card, opened by Send / the model chip
+    /// when no chat agent can answer yet. Modal over the sheet.
+    pub connect_card_open: bool,
 }
 
 impl Default for HomeState {
@@ -186,6 +199,7 @@ impl Default for HomeState {
             scroll_y: 0.0,
             shown_at_ms: 0,
             input: TextInputState::default(),
+            connect_card_open: false,
         }
     }
 }
@@ -198,6 +212,7 @@ impl HomeState {
         self.hover = None;
         self.pressed = None;
         self.shown_at_ms = 0;
+        self.connect_card_open = false;
     }
 
     /// The next frame instant the entrance choreography still needs, or
@@ -342,6 +357,7 @@ mod tests {
             shown_at_ms: 5_000,
             hover: Some(HomeHit::Send),
             pressed: Some(HomeHit::Send),
+            connect_card_open: true,
             ..HomeState::default()
         };
         home.hide();
@@ -349,6 +365,10 @@ mod tests {
         assert_eq!(home.hover, None);
         assert_eq!(home.pressed, None);
         assert_eq!(home.shown_at_ms, 0, "the next show must animate again");
+        assert!(
+            !home.connect_card_open,
+            "the modal card must not survive the surface"
+        );
     }
 
     #[test]

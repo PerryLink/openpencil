@@ -15,6 +15,17 @@ use op_editor_core::{EditorState, HomeDevice, HomeFamily, HomeHit, HomeState};
 mod palette;
 pub use palette::HomePalette;
 
+#[path = "home_surface_model.rs"]
+mod model;
+pub use model::{
+    home_model_picker_rects, model_chip_label, model_chip_width, paint_connect_more_row,
+    CONNECT_MORE_ROW_GAP, CONNECT_MORE_ROW_H, HOME_MODEL_PICKER_GAP, HOME_MODEL_PICKER_W,
+    MODEL_CHIP_H,
+};
+
+#[path = "home_surface_connect.rs"]
+mod connect;
+
 pub const HOME_TOPBAR_H: f32 = 64.0;
 const CONTENT_MAX_W: f32 = 720.0;
 const PAGE_PAD: f32 = 48.0;
@@ -53,6 +64,10 @@ pub struct HomeLayout {
     pub figma: Rect,
     pub example: Rect,
     pub send: Rect,
+    /// The "⏎ 发送" hint text slot left of the send circle.
+    pub send_hint: Rect,
+    /// The model chip pill left of the hint.
+    pub model_chip: Rect,
     pub chips: [Rect; 4],
     pub expected: Rect,
     pub device_mobile: Rect,
@@ -60,6 +75,10 @@ pub struct HomeLayout {
     pub cards: [Rect; 4],
     pub footer: Rect,
     pub professional: Rect,
+    /// The 接入卡 modal card centred over the sheet (drawn only while
+    /// `connect_card_open`).
+    pub connect_card: Rect,
+    pub connect_rows: [Rect; 3],
 }
 
 impl HomeLayout {
@@ -90,13 +109,17 @@ impl HomeLayout {
             figma: translate(self.figma),
             example: translate(self.example),
             send: translate(self.send),
+            send_hint: translate(self.send_hint),
+            model_chip: translate(self.model_chip),
             chips: self.chips.map(translate),
             expected: translate(self.expected),
             device_mobile: translate(self.device_mobile),
             device_desktop: translate(self.device_desktop),
             cards: self.cards.map(translate),
             footer: self.footer,
-            professional: self.professional,
+            professional: translate(self.professional),
+            connect_card: translate(self.connect_card),
+            connect_rows: self.connect_rows.map(translate),
         }
     }
 }
@@ -163,6 +186,13 @@ pub struct HomeSurface<'a> {
     pub state: &'a HomeState,
     pub ui: &'a op_editor_core::EditorUiState,
     pub now_ms: u64,
+    /// The model chip's label, derived once per surface from the chat
+    /// selection (or the localized connect hint when no agent is
+    /// usable) so layout and paint cannot disagree.
+    pub chip_label: String,
+    /// Whether any chat agent can answer — drives the chip's empty
+    /// state and the send button's faded fill.
+    pub usable_agent: bool,
 }
 
 impl<'a> HomeSurface<'a> {
@@ -177,6 +207,8 @@ impl<'a> HomeSurface<'a> {
             state: &state.editor_ui.home,
             ui: &state.editor_ui,
             now_ms,
+            chip_label: model::model_chip_label(state),
+            usable_agent: state.has_usable_chat_agent(),
         })
     }
 
@@ -184,8 +216,15 @@ impl<'a> HomeSurface<'a> {
         viewport_width: f32,
         viewport_height: f32,
         bound: Option<HomeFamily>,
+        model_chip_label_w: f32,
     ) -> HomeLayout {
-        Self::layout_for_scrolled(viewport_width, viewport_height, bound, 0.0)
+        Self::layout_for_scrolled(
+            viewport_width,
+            viewport_height,
+            bound,
+            0.0,
+            model_chip_label_w,
+        )
     }
 
     pub fn layout_for_scrolled(
@@ -193,6 +232,7 @@ impl<'a> HomeSurface<'a> {
         viewport_height: f32,
         bound: Option<HomeFamily>,
         scroll_y: f32,
+        model_chip_label_w: f32,
     ) -> HomeLayout {
         let width = viewport_width.max(1.0);
         let height = viewport_height.max(1.0);
@@ -273,6 +313,24 @@ impl<'a> HomeSurface<'a> {
             40.0,
             40.0,
         );
+        // Bottom-row right-aligned group: model chip · 12 px · ⏎ hint ·
+        // 8 px · send. The hint keeps its prototype baseline; the chip
+        // rides the reference row's 28 px band.
+        let send_hint = Rect::xywh(
+            send.origin.x - model::HINT_SEND_GAP - model::SEND_HINT_W,
+            send.origin.y + 8.0,
+            model::SEND_HINT_W,
+            20.0,
+        );
+        let chip_w =
+            (model::MODEL_CHIP_PREFIX_W + model_chip_label_w + model::MODEL_CHIP_CHEVRON_W)
+                .min(model::MODEL_CHIP_MAX_W);
+        let model_chip = Rect::xywh(
+            send_hint.origin.x - model::CHIP_HINT_GAP - chip_w,
+            refs_top,
+            chip_w,
+            model::MODEL_CHIP_H,
+        );
 
         let chip_widths = [94.0, 94.0, 94.0, 94.0];
         let chip_gap = 8.0;
@@ -347,6 +405,7 @@ impl<'a> HomeSurface<'a> {
         } else {
             Rect::ZERO
         };
+        let (connect_card, connect_rows) = connect::connect_card_rects(sheet);
         let layout = HomeLayout {
             headline,
             subtitle,
@@ -357,6 +416,8 @@ impl<'a> HomeSurface<'a> {
             figma,
             example,
             send,
+            send_hint,
+            model_chip,
             chips,
             expected,
             device_mobile,
@@ -364,6 +425,8 @@ impl<'a> HomeSurface<'a> {
             cards,
             footer,
             professional,
+            connect_card,
+            connect_rows,
         };
         layout.translated_stack(scroll_y.max(0.0))
     }
@@ -373,7 +436,9 @@ impl<'a> HomeSurface<'a> {
         viewport_height: f32,
         bound: Option<HomeFamily>,
     ) -> f32 {
-        let layout = Self::layout_for(viewport_width, viewport_height, bound);
+        // The chip never affects the scroll bounds — a nominal width is
+        // all the layout needs to place the irrelevant rects.
+        let layout = Self::layout_for(viewport_width, viewport_height, bound, 0.0);
         let content_bottom = layout
             .cards
             .iter()
@@ -389,6 +454,7 @@ impl<'a> HomeSurface<'a> {
             viewport_height,
             self.state.bound,
             self.state.scroll_y.clamp(0.0, max_scroll),
+            model::model_chip_width(&self.chip_label),
         )
     }
 
@@ -399,11 +465,21 @@ impl<'a> HomeSurface<'a> {
         point: Point2D,
     ) -> Option<HomeHit> {
         let layout = self.layout(viewport_width, viewport_height);
+        // The 接入卡 is modal over the whole surface: presses inside its
+        // rows act, presses anywhere else (even on Home chrome) close it.
+        if self.state.connect_card_open {
+            return Some(
+                connect::connect_card_hit(&layout, point).unwrap_or(HomeHit::ConnectClose),
+            );
+        }
         if layout.professional.contains(point) {
             return Some(HomeHit::Professional);
         }
         if layout.send.contains(point) {
             return Some(HomeHit::Send);
+        }
+        if layout.model_chip.contains(point) {
+            return Some(HomeHit::ModelChip);
         }
         for (index, rect) in layout.chips.into_iter().enumerate() {
             if rect.contains(point) {

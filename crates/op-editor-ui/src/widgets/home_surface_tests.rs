@@ -4,7 +4,7 @@ use op_editor_core::{HomeFamily, HomeHit};
 
 #[test]
 fn home_layout_matches_the_centered_reference_stack_at_1440x900() {
-    let layout = HomeSurface::layout_for(1440.0, 900.0, None);
+    let layout = HomeSurface::layout_for(1440.0, 900.0, None, 60.0);
     assert_close(layout.headline.origin.y, 162.0);
     assert_close(layout.sheet.origin.y, 280.0);
     assert_eq!(layout.sheet.size, Point2D::new(720.0, 150.0));
@@ -25,7 +25,7 @@ fn home_layout_matches_the_centered_reference_stack_at_1440x900() {
 
 #[test]
 fn home_cards_wrap_two_by_two_below_1180() {
-    let layout = HomeSurface::layout_for(1180.0, 760.0, Some(HomeFamily::AppUi));
+    let layout = HomeSurface::layout_for(1180.0, 760.0, Some(HomeFamily::AppUi), 60.0);
     assert!(layout.cards[0].origin.y == layout.cards[1].origin.y);
     assert!(layout.cards[2].origin.y > layout.cards[0].origin.y);
     assert!(layout.cards[0].origin.x < layout.cards[1].origin.x);
@@ -38,8 +38,8 @@ fn home_stack_reports_scroll_when_the_narrow_viewport_is_short() {
     let max_scroll = HomeSurface::max_scroll_for(1180.0, 620.0, Some(HomeFamily::AppUi));
     assert!(max_scroll > 0.0);
     let scrolled =
-        HomeSurface::layout_for_scrolled(1180.0, 620.0, Some(HomeFamily::AppUi), max_scroll);
-    let unscrolled = HomeSurface::layout_for(1180.0, 620.0, Some(HomeFamily::AppUi));
+        HomeSurface::layout_for_scrolled(1180.0, 620.0, Some(HomeFamily::AppUi), max_scroll, 60.0);
+    let unscrolled = HomeSurface::layout_for(1180.0, 620.0, Some(HomeFamily::AppUi), 60.0);
     assert_eq!(scrolled.footer, unscrolled.footer);
     assert!(scrolled.cards[2].origin.y < unscrolled.cards[2].origin.y);
     assert!(scrolled.cards[3].origin.y + scrolled.cards[3].size.y <= scrolled.footer.origin.y);
@@ -88,6 +88,113 @@ fn home_hit_test_resolves_chip_and_send() {
     assert_eq!(
         home.hit_test(1440.0, 900.0, center(layout.send)),
         Some(HomeHit::Send)
+    );
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, center(layout.model_chip)),
+        Some(HomeHit::ModelChip)
+    );
+}
+
+#[test]
+fn model_chip_sits_left_of_the_send_hint_inside_the_sheet() {
+    let layout = HomeSurface::layout_for(1440.0, 900.0, None, 60.0);
+    // Right-aligned group: chip · 12 px · hint · 8 px · send.
+    assert_close(
+        layout.send.origin.x - (layout.send_hint.origin.x + layout.send_hint.size.x),
+        8.0,
+    );
+    assert_close(
+        layout.send_hint.origin.x - (layout.model_chip.origin.x + layout.model_chip.size.x),
+        12.0,
+    );
+    assert_eq!(layout.model_chip.size.y, 28.0);
+    // The chip is a pill on the sheet's bottom row, not floating off it.
+    assert!(layout.model_chip.origin.x > layout.sheet.origin.x);
+    assert!(
+        layout.model_chip.origin.x + layout.model_chip.size.x
+            < layout.sheet.origin.x + layout.sheet.size.x
+    );
+    assert!(layout.model_chip.origin.y > layout.sheet.origin.y);
+    assert!(
+        layout.model_chip.origin.y + layout.model_chip.size.y
+            < layout.sheet.origin.y + layout.sheet.size.y
+    );
+    // The width is prefix + label + chevron.
+    assert_close(
+        layout.model_chip.size.x,
+        super::model::MODEL_CHIP_PREFIX_W + 60.0 + super::model::MODEL_CHIP_CHEVRON_W,
+    );
+}
+
+#[test]
+fn model_chip_label_reuses_the_chat_selection_and_empties_without_an_agent() {
+    let mut state = op_editor_core::EditorState::new();
+    assert_eq!(
+        super::model::model_chip_label(&state),
+        op_i18n::translate(state.editor_ui.locale, "home.connect.chipEmpty")
+    );
+    state.editor_ui.agent_settings.connected[0] = true;
+    state.chat.available_models = vec![op_editor_core::ModelEntry::new(
+        op_editor_core::AgentProvider::ClaudeCode,
+        "claude-sonnet-4-6",
+        "Claude Sonnet 4.6",
+    )];
+    state.chat.selected_model = 0;
+    assert_eq!(super::model::model_chip_label(&state), "Claude Sonnet 4.6");
+}
+
+#[test]
+fn connect_card_rows_stack_without_overlap_inside_the_card() {
+    let layout = HomeSurface::layout_for(1440.0, 900.0, None, 60.0);
+    let (card, rows) = (layout.connect_card, layout.connect_rows);
+    assert_eq!(card.size, Point2D::new(460.0, 280.0));
+    // Centred over the sheet.
+    assert_close(
+        card.origin.x + card.size.x / 2.0 - (layout.sheet.origin.x + layout.sheet.size.x / 2.0),
+        0.0,
+    );
+    for (index, row) in rows.iter().enumerate() {
+        assert_eq!(row.size.y, 56.0);
+        assert!(row.origin.x >= card.origin.x);
+        assert!(row.origin.x + row.size.x <= card.origin.x + card.size.x);
+        assert!(row.origin.y >= card.origin.y);
+        assert!(row.origin.y + row.size.y <= card.origin.y + card.size.y);
+        if index > 0 {
+            assert_close(rows[index].origin.y - rows[index - 1].origin.y, 66.0);
+            assert!(!overlaps(rows[index - 1], rows[index]));
+        }
+    }
+}
+
+#[test]
+fn connect_card_open_hides_home_hits_behind_the_modal() {
+    let state = op_editor_core::EditorState::new();
+    let mut state = state;
+    state.editor_ui.home.visible = true;
+    state.editor_ui.home.connect_card_open = true;
+    let home = HomeSurface::for_editor(&state).expect("home");
+    let layout = home.layout(1440.0, 900.0);
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, center(layout.connect_rows[0])),
+        Some(HomeHit::ConnectFreeTier)
+    );
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, center(layout.connect_rows[1])),
+        Some(HomeHit::ConnectApiKey)
+    );
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, center(layout.connect_rows[2])),
+        Some(HomeHit::ConnectCli)
+    );
+    // Presses that would hit Home chrome (the send button) and presses
+    // far outside both close the card instead.
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, center(layout.send)),
+        Some(HomeHit::ConnectClose)
+    );
+    assert_eq!(
+        home.hit_test(1440.0, 900.0, Point2D::new(4.0, 4.0)),
+        Some(HomeHit::ConnectClose)
     );
 }
 

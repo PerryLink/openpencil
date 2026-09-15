@@ -708,6 +708,10 @@ fn main() {
 mod chat_intent_host_tests;
 
 #[cfg(test)]
+#[path = "settings_agent_preference_tests.rs"]
+mod settings_agent_preference_tests;
+
+#[cfg(test)]
 mod main_mcp_tests;
 
 #[cfg(test)]

@@ -60,8 +60,52 @@ impl WidgetHostNative {
                 self.editor_state.editor_ui.home.hide();
                 self.editor_state.editor_ui.entry_surface = EntrySurface::Canvas;
             }
+            HomeHit::ModelChip => {
+                if !self.editor_state.has_usable_chat_agent() {
+                    // Nothing can answer yet — the chip becomes the
+                    // connect card instead of a picker over an empty
+                    // catalog.
+                    self.editor_state.editor_ui.home.connect_card_open = true;
+                } else {
+                    // Same open path the chat panel's model pill takes.
+                    let opening = self.editor_state.editor_ui.toggle_chat_model_picker();
+                    if opening {
+                        self.editor_state.rebuild_chat_models();
+                        self.editor_state.editor_ui.close_parallel_agents_picker();
+                        self.editor_state
+                            .editor_ui
+                            .chat_model_picker_input
+                            .touch(self.now_ms);
+                    }
+                }
+            }
+            HomeHit::ConnectFreeTier => {
+                self.editor_state.editor_ui.home.connect_card_open = false;
+                // TODO(hosted-quota): the free tier becomes its own
+                // hosted-quota sign-up later; for now it opens the plain
+                // sign-in modal.
+                if self.editor_state.editor_ui.account_ui_available {
+                    self.editor_state.editor_ui.login_modal_open = true;
+                    self.editor_state.editor_ui.login_modal_hover = None;
+                }
+            }
+            HomeHit::ConnectApiKey | HomeHit::ConnectCli => {
+                self.editor_state.editor_ui.home.connect_card_open = false;
+                self.editor_state.editor_ui.agent_settings_open = true;
+                self.editor_state.editor_ui.agent_settings.tab =
+                    op_editor_core::AgentSettingsTab::Agents;
+            }
+            HomeHit::ConnectClose => {
+                self.editor_state.editor_ui.home.connect_card_open = false;
+            }
             HomeHit::Send => {
-                self.queue_home_send();
+                if !self.editor_state.has_usable_chat_agent() {
+                    // The send would fail silently — open the connect
+                    // card instead of queueing a dead turn.
+                    self.editor_state.editor_ui.home.connect_card_open = true;
+                } else {
+                    self.queue_home_send();
+                }
             }
             HomeHit::NewCanvas => {
                 self.editor_state.editor_ui.pending_file_action =
@@ -125,6 +169,11 @@ impl WidgetHostNative {
         self.editor_state.editor_ui.home.hide();
         self.editor_state.chat.focus_input_at_end(self.now_ms);
         self.editor_state.chat.set_input_text(prompt);
+        // Home briefs are whole-design requests — pin the turn to the
+        // orchestrator pipeline (reasoning-budget models finish there;
+        // the design-agent loop burns their budget thinking). The
+        // desktop launcher consumes the route on the next drain.
+        self.editor_state.chat.launch_route = op_editor_core::LaunchRoute::Orchestrator;
         let sent = self.editor_state.chat.begin_send();
         self.editor_state.chat.focused = false;
         sent

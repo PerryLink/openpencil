@@ -9,20 +9,31 @@ use super::WidgetHostNative;
 impl WidgetHostNative {
     pub fn apply_send(&mut self) -> bool {
         if self.editor_state.editor_ui.home.visible {
-            if self
-                .editor_state
-                .editor_ui
-                .home
-                .generation_prompt()
-                .is_none()
+            // The overlays Home opens own Enter above the sheet: the
+            // settings modal falls through to its own ladder arm, the
+            // picker and sign-in modal simply swallow the key.
+            if self.editor_state.editor_ui.agent_settings_open {
+                // Fall through to the settings handling below.
+            } else if self.editor_state.editor_ui.chat_model_picker.open
+                || self.editor_state.editor_ui.login_modal_open
             {
                 return true;
+            } else {
+                if self
+                    .editor_state
+                    .editor_ui
+                    .home
+                    .generation_prompt()
+                    .is_none()
+                {
+                    return true;
+                }
+                // Same wrapped-launch path as the sheet's Send button — one
+                // implementation arms the result view and queues the turn.
+                let sent = self.queue_home_send();
+                self.mark_dirty();
+                return sent;
             }
-            // Same wrapped-launch path as the sheet's Send button — one
-            // implementation arms the result view and queues the turn.
-            let sent = self.queue_home_send();
-            self.mark_dirty();
-            return sent;
         }
         // Enter in the save-name dialog confirms (mobile keyboards send it
         // as the "done" action); a blank name swallows the key instead.

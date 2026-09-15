@@ -297,7 +297,7 @@ pub use align::AlignAction;
 pub use button_press_state::ButtonPressTarget;
 pub use chat::{
     AgentProvider, ChatAnchor, ChatImage, ChatMessage, ChatRole, ChatState, ChatToolCall,
-    ModelEntry,
+    LaunchRoute, ModelEntry,
 };
 pub use chat_activity::{ChatActivity, ChatActivityStatus, ChatCompletion, PendingSubtaskRetry};
 pub use chat_button_state::{ChatFooterButton, ChatHeaderButton};

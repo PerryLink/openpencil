@@ -331,6 +331,9 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
 
     let (sheet_dy, sheet_alpha) = enter(HomeEnterBlock::Sheet, 0);
     paint_sheet(surface, cx, layout, sheet_dy, faded(palette, sheet_alpha));
+    if surface.state.connect_card_open {
+        super::connect::paint_connect_card(surface, cx, &layout, palette);
+    }
     for (index, family) in HomeFamily::ALL.into_iter().enumerate() {
         let (chip_dy, chip_alpha) = enter(HomeEnterBlock::Chip, index);
         paint_button(
@@ -361,10 +364,12 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
 }
 
 fn headline_family(surface: &HomeSurface<'_>) -> &'static str {
-    resolve_headline_family(surface.ui)
+    serif_family(surface.ui)
 }
 
-fn resolve_headline_family(ui: &EditorUiState) -> &'static str {
+/// The serif face the Home headlines and the connect-card title paint
+/// in — first bundled/system CJK serif available, else the editor sans.
+pub(super) fn serif_family(ui: &EditorUiState) -> &'static str {
     for candidate in SERIF_CANDIDATES {
         if ui
             .system_font_families
@@ -611,7 +616,9 @@ fn paint_sheet(
             );
         }
     }
-    let send_fill = if surface.state.draft.trim().is_empty() {
+    let send_fill = if surface.state.draft.trim().is_empty() || !surface.usable_agent {
+        // An empty draft AND the no-agent state share the same quiet
+        // fill — the connect card replaces the launch either way.
         fade(palette.ink, 0.28)
     } else {
         palette.blue
@@ -628,14 +635,16 @@ fn paint_sheet(
         palette.paper,
         1.8,
     );
+    let send_hint = shifted(layout.send_hint, rise);
     text(
         cx,
         "⏎ 发送",
-        Point2D::new(send.origin.x - 58.0, send.origin.y + 25.0),
+        Point2D::new(send_hint.origin.x, send_hint.origin.y + 17.0),
         12.0,
         palette.ash,
         MONO,
     );
+    super::model::paint_model_chip(surface, cx, shifted(layout.model_chip, rise), palette);
 }
 
 fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayout) {
@@ -742,7 +751,7 @@ fn paint_footer(cx: &mut PaintCx<'_>, layout: HomeLayout, palette: HomePalette) 
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_headline_family, EditorUiState};
+    use super::{serif_family, EditorUiState};
     use std::sync::Arc;
 
     #[test]
@@ -751,7 +760,7 @@ mod tests {
             system_font_families: Arc::new(vec!["Source Han Serif SC".into(), "Songti SC".into()]),
             ..EditorUiState::default()
         };
-        assert_eq!(resolve_headline_family(&ui), "Songti SC");
+        assert_eq!(serif_family(&ui), "Songti SC");
     }
 
     #[test]
@@ -761,6 +770,6 @@ mod tests {
             bundled_font_families: Arc::new(vec!["Inter".into()]),
             ..EditorUiState::default()
         };
-        assert_eq!(resolve_headline_family(&ui), "system-ui");
+        assert_eq!(serif_family(&ui), "system-ui");
     }
 }

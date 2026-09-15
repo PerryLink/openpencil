@@ -585,6 +585,13 @@ impl WidgetHostNative {
         if let Some(changed) = self.update_touch_panel_gesture(x, y) {
             return changed;
         }
+        // The Home-anchored model picker hovers above the takeover —
+        // its hover pass runs before Home's.
+        if let Some(consumed) =
+            self.cursor_move_home_overlays(x, y, self.last_viewport_w, self.last_viewport_h)
+        {
+            return consumed;
+        }
         if let Some(consumed) =
             self.cursor_move_home(x, y, self.last_viewport_w, self.last_viewport_h)
         {

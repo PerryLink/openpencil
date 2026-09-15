@@ -30,6 +30,7 @@ pub(super) fn validate_payload_fields(raw: &serde_json::Value) -> Result<()> {
             "recent_files",
             "preferred_agent_team_size",
             "entry_surface",
+            "chat_agent",
         ],
         "root",
     )?;

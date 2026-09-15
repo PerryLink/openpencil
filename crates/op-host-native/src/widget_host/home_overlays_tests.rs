@@ -1,0 +1,209 @@
+//! gl-host tests for Home's model-access surface: the model chip, the
+//! connect card, the Home-anchored picker, and the orchestrator launch
+//! route. Run with `--features gl-host`.
+
+use super::WidgetHostNative;
+use op_editor_core::{
+    BuiltinAgentConfig, BuiltinAgentKind, BuiltinAgentPresetKey, HomeFamily, HomeHit, LaunchRoute,
+};
+use op_editor_ui::widgets::ai_chat_model_picker::{MODEL_GROUP_H, MODEL_ROW_H, MODEL_SEARCH_H};
+use op_editor_ui::widgets::HomeSurface;
+use op_editor_ui::{Point2D, Rect};
+
+const W: f32 = 1440.0;
+const H: f32 = 900.0;
+
+fn host_with_home() -> WidgetHostNative {
+    let mut host = WidgetHostNative::new();
+    host.editor_state_mut().editor_ui.home.visible = true;
+    host
+}
+
+fn host_with_usable_agent() -> WidgetHostNative {
+    let mut host = host_with_home();
+    // A ready built-in agent: opening the picker rebuilds the catalog
+    // (`rebuild_chat_models`), and built-in entries survive that
+    // rebuild without CLI discovery or verified-connection state.
+    host.editor_state_mut()
+        .editor_ui
+        .agent_settings
+        .builtin_agents
+        .push(BuiltinAgentConfig {
+            id: "builtin-1".into(),
+            preset: BuiltinAgentPresetKey::Custom,
+            display_name: "MiniMax".into(),
+            kind: BuiltinAgentKind::OpenAiCompat,
+            api_key: "sk-test".into(),
+            models: vec!["MiniMax-M2.7".into(), "MiniMax-M3".into()],
+            base_url: "http://localhost:9".into(),
+            enabled: true,
+        });
+    host
+}
+
+fn center(rect: Rect) -> Point2D {
+    Point2D::new(
+        rect.origin.x + rect.size.x / 2.0,
+        rect.origin.y + rect.size.y / 2.0,
+    )
+}
+
+fn chip_center(host: &WidgetHostNative) -> Point2D {
+    let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
+    center(home.layout(W, H).model_chip)
+}
+
+#[test]
+fn pressing_the_model_chip_opens_the_chat_model_picker() {
+    let mut host = host_with_usable_agent();
+    let point = chip_center(&host);
+    assert!(host.apply_press(point.x, point.y, W, H));
+    assert!(
+        host.editor_state().editor_ui.chat_model_picker.open,
+        "the chip must open the same picker the chat panel uses"
+    );
+}
+
+#[test]
+fn pressing_the_model_chip_without_a_usable_agent_opens_the_connect_card() {
+    let mut host = host_with_home();
+    let point = chip_center(&host);
+    assert!(host.apply_press(point.x, point.y, W, H));
+    assert!(host.editor_state().editor_ui.home.connect_card_open);
+    assert!(!host.editor_state().editor_ui.chat_model_picker.open);
+}
+
+#[test]
+fn pressing_send_without_a_usable_agent_opens_the_connect_card_not_a_turn() {
+    let mut host = host_with_home();
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .bind(HomeFamily::AppUi);
+    host.editor_state_mut().editor_ui.home.set_draft("取餐预约");
+    let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
+    let send = center(home.layout(W, H).send);
+    assert!(host.apply_press(send.x, send.y, W, H));
+    assert!(host.editor_state().editor_ui.home.connect_card_open);
+    assert!(
+        host.editor_state().chat.pending_send.is_none(),
+        "no turn may be queued while nothing can answer it"
+    );
+    assert!(host.home_visible(), "Home stays up under the card");
+}
+
+#[test]
+fn connect_card_rows_open_their_modals_and_escape_closes_the_card() {
+    let mut host = host_with_home();
+    let chip = chip_center(&host);
+    assert!(host.apply_press(chip.x, chip.y, W, H));
+    let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
+    let layout = home.layout(W, H);
+
+    let api_key = center(layout.connect_rows[1]);
+    assert!(host.apply_press(api_key.x, api_key.y, W, H));
+    assert!(!host.editor_state().editor_ui.home.connect_card_open);
+    assert!(host.editor_state().editor_ui.agent_settings_open);
+    assert_eq!(
+        host.editor_state().editor_ui.agent_settings.tab,
+        op_editor_core::AgentSettingsTab::Agents
+    );
+
+    // Re-open via Send this time, then Escape peels the card off. The
+    // settings modal must be closed first — while it is open it owns
+    // every press above Home.
+    host.editor_state_mut().editor_ui.agent_settings_open = false;
+    let send = center(layout.send);
+    assert!(host.apply_press(send.x, send.y, W, H));
+    assert!(host.editor_state().editor_ui.home.connect_card_open);
+    assert!(host.apply_escape());
+    assert!(!host.editor_state().editor_ui.home.connect_card_open);
+}
+
+#[test]
+fn home_send_marks_the_turn_for_the_orchestrator_route() {
+    let mut host = host_with_usable_agent();
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .bind(HomeFamily::AppUi);
+    for character in "取餐预约".chars() {
+        assert!(host.apply_text(character));
+    }
+    assert!(host.apply_send());
+    assert_eq!(
+        host.editor_state().chat.launch_route,
+        LaunchRoute::Orchestrator,
+        "a Home-launched brief must take the orchestrator pipeline"
+    );
+    assert!(host.editor_state().chat.pending_send.is_some());
+}
+
+#[test]
+fn picking_a_row_from_the_home_picker_selects_that_model() {
+    let mut host = host_with_usable_agent();
+    let chip = chip_center(&host);
+    assert!(host.apply_press(chip.x, chip.y, W, H));
+    let (card, _connect_row) = host
+        .home_model_picker_geometry(W, H)
+        .expect("picker geometry resolves above the chip");
+    // Second row of the single Claude Code group: search strip + pad +
+    // group header + one row, centred in the second 28 px row.
+    let row_center = Point2D::new(
+        card.origin.x + 24.0,
+        card.origin.y + MODEL_SEARCH_H + 6.0 + MODEL_GROUP_H + MODEL_ROW_H + MODEL_ROW_H / 2.0,
+    );
+    assert!(host.apply_press(row_center.x, row_center.y, W, H));
+    assert_eq!(
+        host.editor_state()
+            .chat
+            .selected_model_entry()
+            .map(|entry| entry.display_name.as_str()),
+        Some("MiniMax-M3")
+    );
+    assert!(!host.editor_state().editor_ui.chat_model_picker.open);
+}
+
+#[test]
+fn pressing_outside_the_home_picker_closes_it_without_touching_home() {
+    let mut host = host_with_usable_agent();
+    let chip = chip_center(&host);
+    assert!(host.apply_press(chip.x, chip.y, W, H));
+    assert!(host.editor_state().editor_ui.chat_model_picker.open);
+    // A press far from the card closes the picker and is still consumed.
+    assert!(host.apply_press(120.0, 120.0, W, H));
+    assert!(!host.editor_state().editor_ui.chat_model_picker.open);
+    assert!(host.home_visible(), "Home itself must survive the close");
+}
+
+#[test]
+fn the_home_picker_connect_row_opens_agent_settings_on_the_agents_tab() {
+    let mut host = host_with_usable_agent();
+    let chip = chip_center(&host);
+    assert!(host.apply_press(chip.x, chip.y, W, H));
+    let (_card, connect_row) = host
+        .home_model_picker_geometry(W, H)
+        .expect("picker geometry resolves");
+    let point = center(connect_row);
+    assert!(host.apply_press(point.x, point.y, W, H));
+    assert!(host.editor_state().editor_ui.agent_settings_open);
+    assert_eq!(
+        host.editor_state().editor_ui.agent_settings.tab,
+        op_editor_core::AgentSettingsTab::Agents
+    );
+    assert!(!host.editor_state().editor_ui.chat_model_picker.open);
+}
+
+#[test]
+fn home_hit_test_still_routes_the_sheet_under_the_new_chip() {
+    // The chip must not have swallowed the reference row or the sheet.
+    let host = host_with_usable_agent();
+    let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
+    let layout = home.layout(W, H);
+    let sheet = center(layout.sheet_text);
+    assert_eq!(
+        home.hit_test(W, H, sheet),
+        Some(HomeHit::Sheet),
+        "the input area keeps its caret-press hit"
+    );
+}

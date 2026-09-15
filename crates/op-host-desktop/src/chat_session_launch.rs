@@ -77,6 +77,11 @@ pub fn launch_if_pending(
     let Some(user_text) = host.editor_state_mut().chat.pending_send.take() else {
         return false;
     };
+    // Consume the pinned route (resetting it to `Auto`) — Home and the
+    // 成品视图's restyle pin `Orchestrator` because their whole-design
+    // briefs only finish on the orchestrator pipeline with
+    // reasoning-budget models.
+    let launch_route = std::mem::take(&mut host.editor_state_mut().chat.launch_route);
     host.mark_editor_state_dirty();
     let effective_user_text = resolve_turn_user_text(host.editor_state(), &user_text);
     // TS parity (ai-chat-handlers.ts:560-679): builtin / ACP entries
@@ -109,12 +114,16 @@ pub fn launch_if_pending(
         // provider is configured, run the agentic tool-loop with the 14-tool
         // design toolset instead of the orchestrator pipeline. Flag OFF falls
         // through to the orchestrator path below — byte-for-byte unchanged.
-        if launch_design_loop_turn(
-            host,
-            effective_user_text.clone(),
-            current_chat,
-            current_design,
-        ) {
+        // A pinned `Orchestrator` route (Home / restyle sends) skips the
+        // loop even when the gate says yes.
+        if !launch_route.bypasses_design_agent_loop()
+            && launch_design_loop_turn(
+                host,
+                effective_user_text.clone(),
+                current_chat,
+                current_design,
+            )
+        {
             return true;
         }
         // Orchestrator path — unchanged when flag is OFF or no built-in

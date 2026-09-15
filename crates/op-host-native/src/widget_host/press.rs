@@ -209,7 +209,13 @@ impl WidgetHostNative {
         self.last_viewport_w = viewport_width;
         self.last_viewport_h = viewport_height;
         // Home is a full-surface first-launch entry and owns every pointer
-        // event before document chrome or canvas tiers can see it.
+        // event before document chrome or canvas tiers can see it — but the
+        // overlays Home itself opens (agent settings, sign-in modal, the
+        // Home-anchored model picker) paint ABOVE the takeover, so their
+        // presses must arrive first.
+        if let Some(consumed) = self.press_home_overlays(x, y, viewport_width, viewport_height) {
+            return consumed;
+        }
         if let Some(consumed) = self.press_home(x, y, viewport_width, viewport_height) {
             return consumed;
         }
