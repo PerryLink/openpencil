@@ -132,6 +132,12 @@ const SETTINGS_VERSION: u32 = 1;
 const APP_DIR: &str = "openpencil";
 const FILE_NAME: &str = "settings.json";
 static SETTINGS_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+/// Settings paths whose file existed but did not parse at startup. Every
+/// save to one of these is refused for the rest of the process: the
+/// alternative — writing this process's defaults over a file we could not
+/// read — is exactly how a user loses every API key after a build mismatch
+/// or a truncated write.
+static REJECTED_SETTINGS_PATHS: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SettingsPayload {
@@ -178,16 +184,16 @@ struct SettingsPayload {
     /// First-launch surface; older settings default to Home.
     #[serde(default)]
     entry_surface: Option<String>,
+    /// The chat agent's stable provider name (see
+    /// `selected_chat_agent_name`); older settings keep index 0.
+    #[serde(default)]
+    chat_agent: Option<String>,
 }
 
 /// Resolve the platform-specific settings path. `None` when no
 /// usable config base exists — load/save become silent no-ops.
 ///
 /// An embedded shell (the mobile FFI hosts) selects its private
-    /// The chat agent's stable provider name (see
-    /// `selected_chat_agent_name`); older settings keep index 0.
-    #[serde(default)]
-    chat_agent: Option<String>,
 /// app-sandbox directory through `op_config_store::configure_user_root`
 /// before engine construction; `settings.json` then lives next to the
 /// other per-user config files in that root. Desktop never configures an
@@ -255,13 +261,13 @@ fn to_payload(state: &EditorState) -> SettingsPayload {
         ),
         preferred_agent_team_size: Some(eui.preferred_agent_team_size),
         entry_surface: Some(eui.entry_surface.as_str().into()),
+        chat_agent: Some(selected_chat_agent_name(eui)),
     }
 }
 
 fn apply_payload(state: &mut EditorState, payload: SettingsPayload) {
     apply_payload_with_options(state, payload, true);
 }
-        chat_agent: Some(selected_chat_agent_name(eui)),
 
 fn apply_payload_with_options(
     state: &mut EditorState,
@@ -368,17 +374,17 @@ fn apply_payload_with_options(
     if let Some(surface) = payload.entry_surface.as_deref() {
         eui.entry_surface = op_editor_core::EntrySurface::from_str(surface);
     }
+    // Restore the chat agent by name — `rebuild_chat_models` further
+    // down re-derives the model catalog against this selection.
+    if let Some(name) = payload.chat_agent.as_deref() {
+        eui.chat_selected_agent = chat_agent_index_for_name(name);
+    }
     // Seed tab 0's ⚡Nx from the persisted preference — `load` runs before
     // any tab has been created beyond the default single tab, so this is
     // the ONE spot that reconnects "what the user last set" across a full
     // app restart (`ChatSessions::new_tab` handles the SAME continuity
     // within a running session, carrying the active tab's current value
     // forward). Captured into a local before the last `eui` use ends the
-    // Restore the chat agent by name — `rebuild_chat_models` further
-    // down re-derives the model catalog against this selection.
-    if let Some(name) = payload.chat_agent.as_deref() {
-        eui.chat_selected_agent = chat_agent_index_for_name(name);
-    }
     // mutable borrow of `state.editor_ui`, so `state.chat` can be written
     // next.
     let preferred_agent_team_size = eui.preferred_agent_team_size;
@@ -519,12 +525,52 @@ pub fn load(state: &mut EditorState) {
     // detected locale instead of leaving the EnUs default.
     seed_system_locale(state);
     if let Some(path) = settings_path() {
-        if let Ok(bytes) = std::fs::read(&path) {
-            if let Ok(payload) = serde_json::from_slice::<SettingsPayload>(&bytes) {
-                apply_payload(state, payload);
+        load_lenient_from_path(state, &path);
+    }
+}
+
+/// The lenient startup load behind [`load`]. A missing file is a normal
+/// first run. A file that exists but does not parse is NOT silently
+/// replaced by defaults: its bytes are copied to a `settings.json.corrupt-…`
+/// sibling and the path is pinned so every later save is refused (see
+/// [`SettingsIoError::RejectedLoad`]). Returns `false` when the file was
+/// rejected.
+pub fn load_lenient_from_path(state: &mut EditorState, path: &Path) -> bool {
+    let Ok(bytes) = std::fs::read(path) else {
+        return true;
+    };
+    match serde_json::from_slice::<SettingsPayload>(&bytes) {
+        Ok(payload) => {
+            apply_payload(state, payload);
+            true
+        }
+        Err(_) => {
+            let _ = std::fs::write(corrupt_backup_path(path), &bytes);
+            if let Ok(mut rejected) = REJECTED_SETTINGS_PATHS.lock() {
+                rejected.push(path.to_path_buf());
             }
+            false
         }
     }
+}
+
+fn corrupt_backup_path(path: &Path) -> PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(FILE_NAME);
+    path.with_file_name(format!("{name}.corrupt-{stamp}"))
+}
+
+fn save_refused_for(path: &Path) -> bool {
+    REJECTED_SETTINGS_PATHS
+        .lock()
+        .map(|rejected| rejected.iter().any(|p| p == path))
+        .unwrap_or(false)
 }
 
 /// Seed the first-run locale through the shared i18n environment resolver.
@@ -549,7 +595,6 @@ struct PendingSettingsFile {
 }
 
 impl PendingSettingsFile {
-            false
     fn file_mut(&mut self) -> &mut std::fs::File {
         self.file
             .as_mut()
@@ -623,6 +668,9 @@ fn create_unique_settings_temp(path: &Path) -> Result<PendingSettingsFile, Setti
 }
 
 fn save_checked_to_path(state: &EditorState, path: &Path) -> Result<(), SettingsIoError> {
+    if save_refused_for(path) {
+        return Err(SettingsIoError::RejectedLoad);
+    }
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| SettingsIoError::CreateDir {
             detail: error.to_string(),
@@ -660,3 +708,11 @@ fn resolve_persisted_locale(current: Locale, persisted: Option<&str>) -> Locale 
 #[cfg(test)]
 #[path = "settings_io_tests.rs"]
 mod settings_io_tests;
+
+#[cfg(test)]
+#[path = "settings_io_chat_agent_tests.rs"]
+mod settings_io_chat_agent_tests;
+
+#[cfg(test)]
+#[path = "settings_io_guard_tests.rs"]
+mod settings_io_guard_tests;
