@@ -229,28 +229,44 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
     let enter = |block, index| home_enter(block, index, shown_at, surface.now_ms);
     let (_, chrome_alpha) = enter(HomeEnterBlock::Footer, 0);
     let chrome_palette = faded(palette, chrome_alpha);
+    // "专业模式" is the quiet label, "直接进画布 →" the action; the pair
+    // is right-aligned to the page margin, and hover inks the action
+    // with a hairline underneath (prototype `.pro:hover`).
+    let pro_hover = surface.state.hover == Some(HomeHit::Professional);
+    let quiet = "专业模式";
+    let action = "直接进画布 →";
+    let quiet_w = cx.backend.measure_text_family(quiet, 13.0, SANS);
+    let action_w = cx.backend.measure_text_family(action, 13.0, SANS);
+    let right = layout.professional.origin.x + layout.professional.size.x;
+    let action_x = right - action_w;
+    let quiet_x = action_x - 6.0 - quiet_w;
+    let base_y = layout.professional.origin.y + 19.0;
     text(
         cx,
-        "专业模式 · 直接进画布 →",
-        Point2D::new(
-            layout.professional.origin.x,
-            layout.professional.origin.y + 19.0,
-        ),
+        quiet,
+        Point2D::new(quiet_x, base_y),
         13.0,
-        chrome_palette.graphite,
+        chrome_palette.ash,
         SANS,
     );
-    if surface.state.hover == Some(HomeHit::Professional) {
+    text_weighted(
+        cx,
+        action,
+        Point2D::new(action_x, base_y),
+        13.0,
+        if pro_hover {
+            chrome_palette.ink
+        } else {
+            chrome_palette.graphite
+        },
+        SANS,
+        500,
+    );
+    if pro_hover {
         cx.backend.stroke_line(
-            Point2D::new(
-                layout.professional.origin.x,
-                layout.professional.origin.y + 25.0,
-            ),
-            Point2D::new(
-                layout.professional.origin.x + layout.professional.size.x,
-                layout.professional.origin.y + 25.0,
-            ),
-            chrome_palette.blue,
+            Point2D::new(action_x, base_y + 5.0),
+            Point2D::new(right, base_y + 5.0),
+            chrome_palette.ink,
             1.0,
         );
     }
@@ -277,7 +293,7 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
         52.0,
         faded(palette, headline_alpha).ink,
         headline_family,
-        600,
+        700,
         spacing,
     );
     let underline_start = layout.headline.origin.x
@@ -294,9 +310,10 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
         paint_wavy_underline(
             cx,
             underline_start,
-            headline_y + 50.0,
-            underline_width * underline_fraction,
-            faded(palette, underline_fraction).blue,
+            headline_y + 43.0,
+            underline_width,
+            underline_fraction,
+            palette.blue,
         );
     }
     let (subtitle_dy, subtitle_alpha) = enter(HomeEnterBlock::Subtitle, 0);
@@ -361,19 +378,45 @@ fn resolve_headline_family(ui: &EditorUiState) -> &'static str {
     SANS
 }
 
-fn paint_wavy_underline(cx: &mut PaintCx<'_>, x: f32, y: f32, width: f32, color: Color) {
-    let segment = width / 6.0;
-    let points = [
-        Point2D::new(x, y),
-        Point2D::new(x + segment, y - 1.0),
-        Point2D::new(x + segment * 2.0, y + 0.5),
-        Point2D::new(x + segment * 3.0, y - 0.5),
-        Point2D::new(x + segment * 4.0, y + 0.8),
-        Point2D::new(x + segment * 5.0, y - 0.4),
-        Point2D::new(x + width, y),
-    ];
-    for pair in points.windows(2) {
-        cx.backend.stroke_line(pair[0], pair[1], color, 2.2);
+/// The hand-drawn stroke under 做成什么: the prototype's SVG
+/// `M2 9 C 40 3, 80 12, 120 7 S 180 4, 198 8` (viewBox 200×14, stretched to
+/// 104 % of the word and hanging 8 px under it), flattened to a polyline
+/// and drawn left→right up to `fraction` of its length.
+fn paint_wavy_underline(
+    cx: &mut PaintCx<'_>,
+    x: f32,
+    baseline_y: f32,
+    width: f32,
+    fraction: f32,
+    color: Color,
+) {
+    const STEPS: usize = 18;
+    let left = x - width * 0.02;
+    let scale_x = width * 1.04 / 200.0;
+    let top = baseline_y - 1.0;
+    let map = |px: f32, py: f32| Point2D::new(left + px * scale_x, top + py);
+    let cubic = |a: (f32, f32), b: (f32, f32), c: (f32, f32), d: (f32, f32), t: f32| {
+        let u = 1.0 - t;
+        (
+            u * u * u * a.0 + 3.0 * u * u * t * b.0 + 3.0 * u * t * t * c.0 + t * t * t * d.0,
+            u * u * u * a.1 + 3.0 * u * u * t * b.1 + 3.0 * u * t * t * c.1 + t * t * t * d.1,
+        )
+    };
+    let mut points: Vec<Point2D> = Vec::with_capacity(STEPS * 2 + 1);
+    for i in 0..=STEPS {
+        let t = i as f32 / STEPS as f32;
+        let (px, py) = cubic((2.0, 9.0), (40.0, 3.0), (80.0, 12.0), (120.0, 7.0), t);
+        points.push(map(px, py));
+    }
+    for i in 1..=STEPS {
+        let t = i as f32 / STEPS as f32;
+        // `S 180 4, 198 8` reflects the previous control point about (120, 7).
+        let (px, py) = cubic((120.0, 7.0), (160.0, 2.0), (180.0, 4.0), (198.0, 8.0), t);
+        points.push(map(px, py));
+    }
+    let drawn = ((points.len() - 1) as f32 * fraction.clamp(0.0, 1.0)).round() as usize;
+    for pair in points[..=drawn.min(points.len() - 1)].windows(2) {
+        cx.backend.stroke_line(pair[0], pair[1], color, 2.4);
     }
 }
 
@@ -381,17 +424,36 @@ fn paint_wordmark(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect) {
     let mark = Rect::xywh(80.0, 22.0, 18.0, 18.0);
     cx.backend
         .stroke_round_rect(mark, 4.0, label_color(surface), 1.5);
-    cx.backend
-        .fill_round_rect(Rect::xywh(84.0, 26.0, 8.0, 8.0), 1.0, blue(surface));
-    text(
+    // The 8 px square rotated 45° from the prototype wordmark.
+    let (cx0, cy0, r) = (89.0, 31.0, 5.6);
+    cx.backend.fill_polygon(
+        &[
+            Point2D::new(cx0, cy0 - r),
+            Point2D::new(cx0 + r, cy0),
+            Point2D::new(cx0, cy0 + r),
+            Point2D::new(cx0 - r, cy0),
+        ],
+        blue(surface),
+    );
+    draw_spaced_text(
         cx,
         "OpenPencil",
         Point2D::new(108.0, 36.0),
         14.0,
         label_color(surface),
         SANS,
+        600,
+        0.28,
     );
     let _ = rect;
+}
+
+/// What sits in front of a sheet entry's label.
+#[derive(Clone, Copy)]
+enum RefIcon {
+    Lucide(Icon),
+    Figma,
+    None,
 }
 
 fn paint_sheet(
@@ -410,22 +472,50 @@ fn paint_sheet(
     let figma = shifted(layout.figma, rise);
     let example = shifted(layout.example, rise);
     let send = shifted(layout.send, rise);
-    // Home owns its focus treatment. The editor's normal blue ring must not
-    // leak into the drafting-table surface.
+    // Home owns its focus treatment. At rest the sheet is a piece of
+    // paper on the table (soft shadow, hairline border); it only takes
+    // the blue ring once the user engages it — a draft in progress or
+    // the pointer on it — never on a cold launch.
+    let engaged = !surface.state.draft.is_empty()
+        || matches!(
+            surface.state.hover,
+            Some(HomeHit::Sheet) | Some(HomeHit::Send)
+        );
     cx.backend.fill_drop_shadow(
         Rect::xywh(
-            sheet.origin.x - 3.0,
-            sheet.origin.y - 3.0,
-            sheet.size.x + 6.0,
-            sheet.size.y + 6.0,
+            sheet.origin.x + 8.0,
+            sheet.origin.y + 12.0,
+            sheet.size.x - 16.0,
+            sheet.size.y - 8.0,
         ),
         14.0,
-        6.0,
-        fade(palette.blue_soft, 0.55),
+        16.0,
+        fade(palette.ink, 0.14),
     );
+    if engaged {
+        cx.backend.fill_drop_shadow(
+            Rect::xywh(
+                sheet.origin.x - 3.0,
+                sheet.origin.y - 3.0,
+                sheet.size.x + 6.0,
+                sheet.size.y + 6.0,
+            ),
+            16.0,
+            4.0,
+            fade(palette.blue, 0.10),
+        );
+    }
     cx.backend.fill_round_rect(sheet, 14.0, palette.sheet);
-    cx.backend
-        .stroke_round_rect(sheet, 14.0, fade(palette.blue, 0.55), 1.0);
+    cx.backend.stroke_round_rect(
+        sheet,
+        14.0,
+        if engaged {
+            fade(palette.blue, 0.55)
+        } else {
+            palette.line
+        },
+        1.0,
+    );
     for tick in 1..28 {
         let x = sheet.origin.x + tick as f32 * 22.0;
         cx.backend.stroke_line(
@@ -458,21 +548,22 @@ fn paint_sheet(
         surface.state.visible,
     );
     let refs = [
-        (screenshot, HomeHit::Attachment, "截图", Some(Icon::Image)),
+        (
+            screenshot,
+            HomeHit::Attachment,
+            "截图",
+            RefIcon::Lucide(Icon::Image),
+        ),
         (
             reference_link,
             HomeHit::ReferenceLink,
             "参考链接",
-            Some(Icon::ArrowUpRight),
+            RefIcon::Lucide(Icon::ArrowUpRight),
         ),
         // The Figma row carries the brand mark, not a lucide glyph.
-        (figma, HomeHit::Figma, "Figma", None),
-        (
-            example,
-            HomeHit::TryExample,
-            "试试这个示例",
-            Some(Icon::Sparkles),
-        ),
+        (figma, HomeHit::Figma, "Figma", RefIcon::Figma),
+        // The example is plain blue text, as in the prototype.
+        (example, HomeHit::TryExample, "试试这个示例", RefIcon::None),
     ];
     for (rect, hit, label, icon) in refs {
         let disabled = matches!(hit, HomeHit::ReferenceLink | HomeHit::Figma);
@@ -488,14 +579,21 @@ fn paint_sheet(
             cx.backend.fill_round_rect(rect, 8.0, palette.paper_2);
         }
         let icon_origin = Point2D::new(rect.origin.x, rect.origin.y + 6.0);
-        match icon {
-            Some(icon) => draw_icon(cx.backend, icon, icon_origin, 14.0, color, 1.25),
-            None => paint_figma_logo(cx.backend, icon_origin, 14.0, color),
-        }
+        let label_x = match icon {
+            RefIcon::Lucide(icon) => {
+                draw_icon(cx.backend, icon, icon_origin, 14.0, color, 1.25);
+                rect.origin.x + 19.0
+            }
+            RefIcon::Figma => {
+                paint_figma_logo(cx.backend, icon_origin, 14.0, color);
+                rect.origin.x + 19.0
+            }
+            RefIcon::None => rect.origin.x + 4.0,
+        };
         text(
             cx,
             label,
-            Point2D::new(rect.origin.x + 19.0, rect.origin.y + 19.0),
+            Point2D::new(label_x, rect.origin.y + 19.0),
             13.0,
             color,
             SANS,
@@ -628,44 +726,18 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
 }
 
 fn paint_footer(cx: &mut PaintCx<'_>, layout: HomeLayout, palette: HomePalette) {
-    text(
-        cx,
-        "最近项目（空）",
-        Point2D::new(layout.footer.origin.x, layout.footer.origin.y + 16.0),
-        13.0,
-        palette.graphite,
-        SANS,
-    );
-    text(
-        cx,
-        "·",
-        Point2D::new(layout.footer.origin.x + 88.0, layout.footer.origin.y + 16.0),
-        13.0,
-        palette.graphite,
-        SANS,
-    );
-    text(
-        cx,
-        "新建空白画布",
-        Point2D::new(
-            layout.footer.origin.x + 104.0,
-            layout.footer.origin.y + 16.0,
-        ),
-        13.0,
-        palette.ink,
-        SANS,
-    );
-    text(
-        cx,
-        "·  打开文件",
-        Point2D::new(
-            layout.footer.origin.x + 206.0,
-            layout.footer.origin.y + 16.0,
-        ),
-        13.0,
-        palette.ink,
-        SANS,
-    );
+    // Prototype `.foot`: 13 px, 14 px gaps, the empty recent list in ash and
+    // the two actions in graphite — no separators.
+    let y = layout.footer.origin.y + 16.0;
+    let mut x = layout.footer.origin.x;
+    for (label, color) in [
+        ("最近项目（空）", palette.ash),
+        ("新建空白画布", palette.graphite),
+        ("打开文件", palette.graphite),
+    ] {
+        text(cx, label, Point2D::new(x, y), 13.0, color, SANS);
+        x += cx.backend.measure_text_family(label, 13.0, SANS) + 14.0;
+    }
 }
 
 #[cfg(test)]

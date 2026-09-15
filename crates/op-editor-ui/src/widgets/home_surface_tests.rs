@@ -10,7 +10,10 @@ fn home_layout_matches_the_centered_reference_stack_at_1440x900() {
     assert_eq!(layout.sheet.size, Point2D::new(720.0, 150.0));
     assert_close(layout.chips[0].origin.y, 448.0);
     assert_close(layout.expected.origin.y, 500.0);
-    assert_close(layout.cards[0].origin.y, 566.0);
+    // Cards rest 22 px above the footer at the reference size, exactly
+    // where the prototype puts them (footer top 864 → cards 642..842).
+    assert_close(layout.cards[0].origin.y, 642.0);
+    assert_close(layout.footer.origin.x, 80.0);
     assert_eq!(layout.cards[0].size, Point2D::new(280.0, 200.0));
     assert_eq!(layout.cards[0].origin.y, layout.cards[1].origin.y);
     assert!(

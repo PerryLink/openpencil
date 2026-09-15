@@ -30,6 +30,16 @@ const SHEET_H: f32 = 150.0;
 const CHIP_H: f32 = 38.0;
 const EXPECTED_H: f32 = 26.0;
 const CARDS_GAP: f32 = 40.0;
+/// Widest the flexible band between the expected row and the example
+/// cards may grow (the prototype at 1440×900 measures 116 px); beyond
+/// that the whole stack re-centres instead of stretching.
+const CARDS_GAP_MAX: f32 = 116.0;
+/// Where the headline sits at the reference size: the prototype's hero
+/// starts 98 px under the top bar.
+const HERO_TOP_MIN: f32 = HOME_TOPBAR_H + 98.0;
+/// The example cards end this far above the footer when bottom-anchored.
+const CARDS_FOOTER_GAP: f32 = 22.0;
+const FOOTER_X: f32 = 80.0;
 const CARD_H: f32 = 200.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -188,9 +198,9 @@ impl<'a> HomeSurface<'a> {
         let height = viewport_height.max(1.0);
         let narrow = width <= 1180.0;
         let footer = Rect::xywh(
-            PAGE_PAD,
+            FOOTER_X,
             height - FOOTER_BOTTOM_GAP - FOOTER_H,
-            width - PAGE_PAD * 2.0,
+            width - FOOTER_X - PAGE_PAD,
             FOOTER_H,
         );
         let top = HOME_TOPBAR_H;
@@ -199,30 +209,38 @@ impl<'a> HomeSurface<'a> {
         } else {
             footer.origin.y.max(top)
         };
-        let pre_cards_h = HEADLINE_H
-            + 14.0
-            + SUBTITLE_H
-            + 34.0
-            + SHEET_H
-            + 18.0
-            + CHIP_H
-            + 14.0
-            + EXPECTED_H
-            + CARDS_GAP;
+        let hero_h =
+            HEADLINE_H + 14.0 + SUBTITLE_H + 34.0 + SHEET_H + 18.0 + CHIP_H + 14.0 + EXPECTED_H;
         let columns = if narrow { 2 } else { 4 };
         let rows: usize = if narrow { 2 } else { 1 };
         let card_height = if narrow {
-            (((bottom - top) - pre_cards_h - CARD_ROW_GAP) / 2.0).clamp(104.0, CARD_H)
+            (((bottom - top) - hero_h - CARDS_GAP - CARD_ROW_GAP) / 2.0).clamp(104.0, CARD_H)
         } else {
             CARD_H
         };
-        let stack_height = pre_cards_h
-            + card_height * rows as f32
-            + CARD_ROW_GAP * (rows.saturating_sub(1) as f32);
+        let cards_h = card_height * rows as f32 + CARD_ROW_GAP * (rows.saturating_sub(1) as f32);
+        // Wide viewports follow the prototype's composition: the hero sits
+        // a fixed distance under the top bar, the cards rest just above
+        // the footer, and the band between them flexes — but only up to
+        // `CARDS_GAP_MAX`; any further room re-centres the whole stack so
+        // a tall window never opens a void between the chips and the
+        // cards. Narrow viewports keep the compact centred stack.
+        let cards_gap = if narrow {
+            CARDS_GAP
+        } else {
+            let avail = footer.origin.y - CARDS_FOOTER_GAP - HERO_TOP_MIN;
+            (avail - hero_h - cards_h).clamp(CARDS_GAP, CARDS_GAP_MAX)
+        };
+        let stack_height = hero_h + cards_gap + cards_h;
         let stack_top = if narrow {
             top.max(top + ((bottom - top - stack_height) / 2.0).max(0.0))
         } else {
-            top + ((bottom - top - stack_height) / 2.0).max(0.0)
+            let avail = footer.origin.y - CARDS_FOOTER_GAP - HERO_TOP_MIN;
+            if avail >= stack_height {
+                HERO_TOP_MIN + (avail - stack_height) / 2.0
+            } else {
+                top + ((bottom - top - stack_height) / 2.0).max(0.0)
+            }
         };
         let headline = Rect::xywh((width - 520.0) / 2.0, stack_top, 520.0, HEADLINE_H);
         let subtitle = Rect::xywh(
@@ -256,7 +274,7 @@ impl<'a> HomeSurface<'a> {
             40.0,
         );
 
-        let chip_widths = [106.0, 106.0, 106.0, 106.0];
+        let chip_widths = [94.0, 94.0, 94.0, 94.0];
         let chip_gap = 8.0;
         let chips_width = chip_widths.iter().sum::<f32>() + chip_gap * 3.0;
         let chips_x = (width - chips_width) / 2.0;
@@ -295,7 +313,7 @@ impl<'a> HomeSurface<'a> {
             CARD_MAX_W
         };
         let grid_width = card_width * columns as f32 + CARD_GAP * (columns - 1) as f32;
-        let grid_top = expected.origin.y + EXPECTED_H + CARDS_GAP;
+        let grid_top = expected.origin.y + EXPECTED_H + cards_gap;
         let grid_x = (width - grid_width) / 2.0;
         let mut cards = [Rect::ZERO; 4];
         for (index, card) in cards.iter_mut().enumerate() {
@@ -422,9 +440,9 @@ impl<'a> HomeSurface<'a> {
         }
         if layout.footer.contains(point) {
             let relative_x = point.x - layout.footer.origin.x;
-            return Some(if relative_x < 76.0 {
+            return Some(if relative_x < 100.0 {
                 HomeHit::Recent
-            } else if relative_x < 184.0 {
+            } else if relative_x < 192.0 {
                 HomeHit::NewCanvas
             } else {
                 HomeHit::OpenFile
