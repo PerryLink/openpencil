@@ -95,6 +95,70 @@ fn result_buttons_stack_at_44px_with_10px_gaps() {
     assert!(last.origin.y + last.size.y <= layout.footer.origin.y + layout.footer.size.y);
 }
 
+/// The never-overflow contract: every button inside the panel, nothing
+/// over the footer, paint order preserved — checked against the panel
+/// geometry the fit ladder actually produced.
+fn assert_panel_fit(layout: &super::ResultLayout, viewport_h: f32) {
+    let limit = layout.footer.origin.y - 16.0;
+    for (index, button) in layout.buttons.iter().enumerate() {
+        assert!(
+            button.origin.y >= layout.panel.origin.y,
+            "at {viewport_h}: button {index} starts above the panel"
+        );
+        assert!(
+            button.origin.y + button.size.y <= layout.panel.origin.y + layout.panel.size.y,
+            "at {viewport_h}: button {index} overflows the panel"
+        );
+        assert!(
+            button.origin.y + button.size.y <= limit,
+            "at {viewport_h}: button {index} crowds the footer"
+        );
+        assert!(!overlap(*button, layout.footer));
+        if index > 0 {
+            let previous = layout.buttons[index - 1];
+            assert!(
+                button.origin.y > previous.origin.y,
+                "at {viewport_h}: button order lost at {index}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_slightly_short_panel_tightens_buttons_but_keeps_the_hint() {
+    // 1180×720: the 44 px stack overflows, the 36 px stack fits — the
+    // first ladder rung alone.
+    let layout = ResultViewSurface::layout_for(1180.0, 720.0, &THREE_PHONES);
+    assert!(layout.hint_visible);
+    for button in &layout.buttons {
+        assert_close(button.size.y, 36.0);
+    }
+    assert_close(
+        layout.buttons[1].origin.y - (layout.buttons[0].origin.y + layout.buttons[0].size.y),
+        6.0,
+    );
+    assert_panel_fit(&layout, 720.0);
+}
+
+#[test]
+fn short_viewports_drop_the_hint_and_fit_all_six_buttons() {
+    // 620 and 560 are shorter than even the compact no-hint stack, so the
+    // ladder ends in the solved-height rung — the six buttons still fit
+    // inside the panel without touching the footer.
+    for height in [620.0, 560.0] {
+        let layout = ResultViewSurface::layout_for(1180.0, height, &THREE_PHONES);
+        assert!(!layout.hint_visible, "at {height} the hint must drop");
+        assert_panel_fit(&layout, height);
+        // Shorter viewport ⇒ tighter buttons, never a wider spread.
+        assert!(layout.buttons[5].size.y < 36.0);
+    }
+    // The full-size layout is untouched: hint shown, 44 px buttons.
+    let full = ResultViewSurface::layout_for(W, H, &THREE_PHONES);
+    assert!(full.hint_visible);
+    assert_close(full.buttons[0].size.y, 44.0);
+    assert_panel_fit(&full, H);
+}
+
 #[test]
 fn wide_board_rows_scale_down_uniformly_instead_of_overflowing() {
     // Six wide dashboard boards cannot fit at full height — the row must

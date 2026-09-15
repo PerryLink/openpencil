@@ -44,6 +44,9 @@ pub(crate) const HINT_LINE_H: f32 = 20.0;
 pub(crate) const HINT_CHARS_PER_LINE: usize = 19;
 pub(crate) const BUTTON_H: f32 = 44.0;
 pub(crate) const BUTTON_GAP: f32 = 10.0;
+/// First escalation on short panels: tighter buttons.
+const BUTTON_H_COMPACT: f32 = 36.0;
+const BUTTON_GAP_COMPACT: f32 = 6.0;
 const BREADCRUMB_W: f32 = 80.0;
 const BREADCRUMB_H: f32 = 22.0;
 const BREADCRUMB_Y: f32 = 86.0;
@@ -73,6 +76,9 @@ pub struct ResultLayout {
     pub panel: Rect,
     pub buttons: [Rect; 6],
     pub footer: Rect,
+    /// False when the panel was too short for hint + buttons: the paint
+    /// pass then draws no hint text and the buttons own that space.
+    pub hint_visible: bool,
 }
 
 /// One board the result view presents: id, caption label, authored size.
@@ -225,16 +231,46 @@ impl<'a> ResultViewSurface<'a> {
             x += scaled + BOARD_GAP;
         }
 
+        // Right-panel fit ladder. The six buttons must end at least 16 px
+        // above the footer and inside the panel; when the full-height
+        // stack does not fit, first tighten the buttons, then drop the
+        // hint text, and as the last resort solve the button height that
+        // exactly fits — the stack never overflows the panel nor steps
+        // on the footer at any viewport height.
         let hint_lines = Self::hint_line_count();
-        let buttons_top =
+        let buttons_bottom_limit = panel.origin.y + panel.size.y - 34.0 - 16.0;
+        let buttons_stack = |top: f32, button_h: f32, gap: f32| {
+            top + (RESULT_BUTTON_HITS.len() as f32) * button_h
+                + (RESULT_BUTTON_HITS.len() - 1) as f32 * gap
+        };
+        let top_with_hint =
             panel.origin.y + PANEL_TITLE_BASELINE + HINT_LINE_H + hint_lines as f32 * HINT_LINE_H;
+        let mut button_h = BUTTON_H;
+        let mut button_gap = BUTTON_GAP;
+        let mut buttons_top = top_with_hint;
+        let mut hint_visible = true;
+        if buttons_stack(buttons_top, button_h, button_gap) > buttons_bottom_limit {
+            button_h = BUTTON_H_COMPACT;
+            button_gap = BUTTON_GAP_COMPACT;
+            if buttons_stack(buttons_top, button_h, button_gap) > buttons_bottom_limit {
+                hint_visible = false;
+                buttons_top = panel.origin.y + PANEL_TITLE_BASELINE + HINT_LINE_H;
+                if buttons_stack(buttons_top, button_h, button_gap) > buttons_bottom_limit {
+                    button_h = ((buttons_bottom_limit
+                        - buttons_top
+                        - (RESULT_BUTTON_HITS.len() - 1) as f32 * button_gap)
+                        / RESULT_BUTTON_HITS.len() as f32)
+                        .max(0.0);
+                }
+            }
+        }
         let mut buttons = [Rect::ZERO; 6];
         for (index, button) in buttons.iter_mut().enumerate() {
             *button = Rect::xywh(
                 panel.origin.x + PANEL_PAD,
-                buttons_top + index as f32 * (BUTTON_H + BUTTON_GAP),
+                buttons_top + index as f32 * (button_h + button_gap),
                 panel.size.x - PANEL_PAD * 2.0,
-                BUTTON_H,
+                button_h,
             );
         }
         let footer = Rect::xywh(
@@ -252,6 +288,7 @@ impl<'a> ResultViewSurface<'a> {
             panel,
             buttons,
             footer,
+            hint_visible,
         }
     }
 

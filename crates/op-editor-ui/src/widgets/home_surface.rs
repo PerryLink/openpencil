@@ -91,6 +91,62 @@ impl HomeLayout {
     }
 }
 
+/// ease-out-cubic — the settle curve the entrance choreography uses
+/// (the prototype's `cubic-bezier(.05,.7,.1,1)` approximation).
+fn ease_out_cubic(t: f32) -> f32 {
+    1.0 - (1.0 - t).powi(3)
+}
+
+/// One block of the Home entrance choreography. The expected row has no
+/// variant: it deliberately never moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HomeEnterBlock {
+    Headline,
+    Subtitle,
+    Underline,
+    Sheet,
+    Chip,
+    Card,
+    Footer,
+}
+
+/// `(start_ms, duration_ms, rise_px)` for one block; `index` staggers the
+/// chip and card blocks, every other block ignores it.
+fn enter_timing(block: HomeEnterBlock, index: usize) -> (u64, u64, f32) {
+    match block {
+        HomeEnterBlock::Headline => (0, 420, 16.0),
+        HomeEnterBlock::Subtitle => (80, 360, 12.0),
+        // The underline draws left→right; its eased phase is the drawn
+        // fraction of the wavy path (returned as the alpha slot).
+        HomeEnterBlock::Underline => (520, 900, 0.0),
+        HomeEnterBlock::Sheet => (140, 360, 12.0),
+        HomeEnterBlock::Chip => (260 + 40 * index as u64, 300, 8.0),
+        HomeEnterBlock::Card => (380 + 70 * index as u64, 360, 18.0),
+        HomeEnterBlock::Footer => (600, 300, 0.0),
+    }
+}
+
+/// A block's entrance phase at `now_ms`: `(rise_offset_y, alpha)` with
+/// ease-out-cubic timing. Rise offsets paint the block `dy` px BELOW its
+/// final rect; alpha fades every colour. For [`HomeEnterBlock::Underline`]
+/// the alpha slot is the left→right drawn fraction instead. A `shown_at_ms`
+/// of 0 means "not started" — the surface paints settled (`t = 1`).
+pub fn home_enter(
+    block: HomeEnterBlock,
+    index: usize,
+    shown_at_ms: u64,
+    now_ms: u64,
+) -> (f32, f32) {
+    if shown_at_ms == 0 {
+        return (0.0, 1.0);
+    }
+    let (start, duration, rise) = enter_timing(block, index);
+    let elapsed = now_ms.saturating_sub(shown_at_ms.saturating_add(start));
+    let t = (elapsed as f32 / duration as f32).clamp(0.0, 1.0);
+    let eased = ease_out_cubic(t);
+    ((1.0 - eased) * rise, eased)
+}
+
 pub struct HomeSurface<'a> {
     pub id: WidgetId,
     pub theme: Theme,
@@ -439,3 +495,7 @@ impl HomeSurface<'_> {
 #[cfg(test)]
 #[path = "home_surface_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "home_surface_motion_tests.rs"]
+mod motion_tests;

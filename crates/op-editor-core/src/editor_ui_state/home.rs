@@ -106,6 +106,15 @@ impl HomeFamily {
     }
 }
 
+/// Total window the entrance choreography animates over (the underline's
+/// 520 ms + 900 ms draw is the longest block). Shared by the widget's
+/// paint pass and the host's frame scheduler so both agree on when the
+/// entrance has fully settled.
+pub const HOME_ENTER_WINDOW_MS: u64 = 1600;
+/// While the entrance is running the scheduler keeps frames coming at
+/// this cadence so the staggered rise never freezes mid-motion.
+pub const HOME_ENTER_FRAME_MS: u64 = 16;
+
 /// The two device contexts shown after App 界面 is bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum HomeDevice {
@@ -155,6 +164,10 @@ pub struct HomeState {
     /// The footer and top bar stay pinned while the drafting-table content
     /// moves inside the area between them.
     pub scroll_y: f32,
+    /// Wall-clock instant the entrance choreography phases against, in ms.
+    /// `0` = not started: the surface paints settled (no motion) until a
+    /// host paint stamps it. Never persisted — it is frame-clock state.
+    pub shown_at_ms: u64,
     /// The same caret/selection machinery used by the chat composer. `draft`
     /// remains the public Home contract; this field keeps native text input,
     /// IME, clipboard, and caret edits lossless.
@@ -171,12 +184,32 @@ impl Default for HomeState {
             hover: None,
             pressed: None,
             scroll_y: 0.0,
+            shown_at_ms: 0,
             input: TextInputState::default(),
         }
     }
 }
 
 impl HomeState {
+    /// Leave the surface. The entrance stamp resets so the next show
+    /// replays the choreography from the top; hover/pressed drop with it.
+    pub fn hide(&mut self) {
+        self.visible = false;
+        self.hover = None;
+        self.pressed = None;
+        self.shown_at_ms = 0;
+    }
+
+    /// The next frame instant the entrance choreography still needs, or
+    /// `None` when hidden, not yet stamped, or past the whole window.
+    pub fn entrance_deadline_ms(&self, now_ms: u64) -> Option<u64> {
+        if !self.visible || self.shown_at_ms == 0 {
+            return None;
+        }
+        (now_ms.saturating_sub(self.shown_at_ms) < HOME_ENTER_WINDOW_MS)
+            .then_some(now_ms.saturating_add(HOME_ENTER_FRAME_MS))
+    }
+
     pub fn bind(&mut self, family: HomeFamily) -> bool {
         let changed = self.bound != Some(family);
         self.bound = Some(family);
@@ -300,5 +333,40 @@ mod tests {
         assert_eq!(home.bound, None);
         assert!(home.toggle_family(HomeFamily::KnowledgeCards));
         assert_eq!(home.bound, Some(HomeFamily::KnowledgeCards));
+    }
+
+    #[test]
+    fn hide_drops_pointer_state_and_resets_the_entrance_stamp() {
+        let mut home = HomeState {
+            visible: true,
+            shown_at_ms: 5_000,
+            hover: Some(HomeHit::Send),
+            pressed: Some(HomeHit::Send),
+            ..HomeState::default()
+        };
+        home.hide();
+        assert!(!home.visible);
+        assert_eq!(home.hover, None);
+        assert_eq!(home.pressed, None);
+        assert_eq!(home.shown_at_ms, 0, "the next show must animate again");
+    }
+
+    #[test]
+    fn entrance_deadline_frames_only_inside_the_window() {
+        let mut home = HomeState::default();
+        assert_eq!(home.entrance_deadline_ms(5_000), None, "hidden");
+        home.visible = true;
+        assert_eq!(home.entrance_deadline_ms(5_000), None, "not stamped yet");
+        home.shown_at_ms = 5_000;
+        assert_eq!(home.entrance_deadline_ms(5_000), Some(5_016));
+        assert_eq!(
+            home.entrance_deadline_ms(5_000 + HOME_ENTER_WINDOW_MS - 1),
+            Some(5_000 + HOME_ENTER_WINDOW_MS - 1 + HOME_ENTER_FRAME_MS)
+        );
+        assert_eq!(
+            home.entrance_deadline_ms(5_000 + HOME_ENTER_WINDOW_MS),
+            None,
+            "settled"
+        );
     }
 }

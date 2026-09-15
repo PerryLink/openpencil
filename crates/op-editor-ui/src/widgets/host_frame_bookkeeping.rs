@@ -172,6 +172,12 @@ pub fn base_animation_deadline_ms(
     if let Some(deadline) = state.editor_ui.result_view.entrance_deadline_ms(now_ms) {
         next = earliest(next, deadline);
     }
+    // Same reason for the Home entrance choreography: the staggered rise
+    // and the underline draw run on their own clock, so the scheduler
+    // must keep frames coming until the whole window has played out.
+    if let Some(deadline) = state.editor_ui.home.entrance_deadline_ms(now_ms) {
+        next = earliest(next, deadline);
+    }
     next
 }
 

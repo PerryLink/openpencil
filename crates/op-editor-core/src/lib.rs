@@ -346,6 +346,7 @@ pub use document_install::{DocumentInstallError, DocumentInstallReport, Prepared
 pub use edit_transaction::{
     CompletedLocalEdit, EditOrigin, LocalEditCapture, LocalEditError, LocalEditOutcome,
 };
+pub use editor_ui_state::home::{HOME_ENTER_FRAME_MS, HOME_ENTER_WINDOW_MS};
 pub use editor_ui_state::result_view::{
     RESULT_ENTER_BOARD_MS, RESULT_ENTER_PANEL_MS, RESULT_ENTER_STAGGER_MS,
 };

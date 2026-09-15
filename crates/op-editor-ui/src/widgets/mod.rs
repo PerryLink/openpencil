@@ -50,7 +50,7 @@ mod layer_panel_touch_tests;
 mod layer_panel_walkers;
 pub mod path_anchor_context_menu;
 pub mod prompt_center_panel;
-pub use home_surface::{HomeLayout, HomeSurface, HOME_TOPBAR_H};
+pub use home_surface::{home_enter, HomeEnterBlock, HomeLayout, HomeSurface, HOME_TOPBAR_H};
 pub mod result_view_surface;
 pub use result_view_surface::{
     board_enter, panel_enter, ResultBoard, ResultLayout, ResultViewSurface, BOARD_RADIUS,

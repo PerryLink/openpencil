@@ -152,6 +152,7 @@ impl DesktopApp {
             pending_cursor_move: None,
             redraw_pending: false,
             redraw_dirty: false,
+            window_shown_once: false,
             last_painted_page: None,
             clock_start: Instant::now(),
             rotate_cursor: None,

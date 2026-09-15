@@ -20,7 +20,7 @@ fn top_bar_rect() -> Rect {
 fn pressing_home_button_queues_file_action_home() {
     let mut host = WidgetHostNative::new();
     // Stay on the canvas so the Home surface does not swallow the press.
-    host.editor_state.editor_ui.home.visible = false;
+    host.editor_state.editor_ui.home.hide();
 
     let bar = TopBar::for_editor_ui(&host.editor_state.editor_ui);
     let home = bar.home_button_rect(top_bar_rect());

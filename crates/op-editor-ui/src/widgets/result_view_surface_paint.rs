@@ -137,10 +137,15 @@ fn paint_button(
         cx.backend.stroke_round_rect(rect, 10.0, palette.line, 1.0);
     }
     let fg = if primary { palette.paper } else { palette.ink };
+    // Center the content vertically: on short panels the button height
+    // shrinks below 44 px and the fixed offsets would clip the label.
     draw_icon(
         cx.backend,
         icon,
-        Point2D::new(rect.origin.x + 16.0, rect.origin.y + 14.0),
+        Point2D::new(
+            rect.origin.x + 16.0,
+            rect.origin.y + (rect.size.y - 16.0) / 2.0,
+        ),
         16.0,
         fg,
         1.6,
@@ -148,7 +153,10 @@ fn paint_button(
     text(
         cx,
         label,
-        Point2D::new(rect.origin.x + 44.0, rect.origin.y + 28.0),
+        Point2D::new(
+            rect.origin.x + 44.0,
+            rect.origin.y + rect.size.y / 2.0 + 5.0,
+        ),
         14.0,
         fg,
         SANS,
@@ -387,29 +395,33 @@ pub(super) fn paint_result_view(surface: &ResultViewSurface<'_>, cx: &mut PaintC
         serif,
         600,
     );
-    let hint = "这是可编辑的设计稿，不是截图：组件、变量、图层都在。先改一处，再试点或导出。";
-    let hint_lines: Vec<String> = hint
-        .chars()
-        .collect::<Vec<_>>()
-        .chunks(super::HINT_CHARS_PER_LINE)
-        .map(|chunk| chunk.iter().collect())
-        .collect();
-    for (line, chunk) in hint_lines.iter().enumerate() {
-        text(
-            cx,
-            chunk,
-            Point2D::new(
-                panel.origin.x + super::PANEL_PAD,
-                panel.origin.y
-                    + super::PANEL_TITLE_BASELINE
-                    + super::HINT_LINE_H
-                    + line as f32 * super::HINT_LINE_H
-                    + 14.0,
-            ),
-            13.0,
-            graphite,
-            SANS,
-        );
+    // The hint is dropped entirely on panels too short for hint +
+    // buttons (see the layout fit ladder).
+    if layout.hint_visible {
+        let hint = "这是可编辑的设计稿，不是截图：组件、变量、图层都在。先改一处，再试点或导出。";
+        let hint_lines: Vec<String> = hint
+            .chars()
+            .collect::<Vec<_>>()
+            .chunks(super::HINT_CHARS_PER_LINE)
+            .map(|chunk| chunk.iter().collect())
+            .collect();
+        for (line, chunk) in hint_lines.iter().enumerate() {
+            text(
+                cx,
+                chunk,
+                Point2D::new(
+                    panel.origin.x + super::PANEL_PAD,
+                    panel.origin.y
+                        + super::PANEL_TITLE_BASELINE
+                        + super::HINT_LINE_H
+                        + line as f32 * super::HINT_LINE_H
+                        + 14.0,
+                ),
+                13.0,
+                graphite,
+                SANS,
+            );
+        }
     }
 
     let labels = [

@@ -3,13 +3,16 @@
 #[path = "home_surface_paint_cards.rs"]
 mod cards;
 
-use self::cards::{paint_app_flow, paint_template_preview};
-use super::{HomeLayout, HomePalette, HomeSurface, HOME_TOPBAR_H};
+// Re-exported for the home surface tests, which assert the tag labels.
+#[cfg(test)]
+pub(super) use self::cards::card_tag_label;
+use self::cards::paint_card;
+use super::{home_enter, HomeEnterBlock, HomeLayout, HomePalette, HomeSurface, HOME_TOPBAR_H};
 use crate::widgets::brand_icons::paint_figma_logo;
 use crate::widgets::property_panel_text_input::paint_text_input_view;
 use crate::widgets::{draw_icon, Icon, PaintCx};
 use crate::{Color, Point2D, Rect, TextLayout, Theme};
-use op_editor_core::{EditorUiState, HomeDevice, HomeFamily, HomeHit, ThemeMode};
+use op_editor_core::{EditorUiState, HomeDevice, HomeFamily, HomeHit};
 
 const SANS: &str = "system-ui";
 const MONO: &str = "SF Mono";
@@ -93,12 +96,39 @@ fn home_palette(surface: &HomeSurface<'_>) -> HomePalette {
     HomePalette::for_mode(surface.ui.effective_theme_mode())
 }
 
-fn line(surface: &HomeSurface<'_>) -> Color {
-    home_palette(surface).line
+/// Multiply a colour's alpha by `factor` — relative, so an entrance fade
+/// composes with the baked alpha (absolute `Color::with_alpha` would
+/// drop the fade).
+fn fade(color: Color, factor: f32) -> Color {
+    Color {
+        a: color.a * factor,
+        ..color
+    }
 }
 
-fn graphite(surface: &HomeSurface<'_>) -> Color {
-    home_palette(surface).graphite
+/// Every palette token at `factor` of its alpha: one entrance block's
+/// whole colour set fades through a single value.
+fn faded(palette: HomePalette, factor: f32) -> HomePalette {
+    let faded = |color| fade(color, factor);
+    HomePalette {
+        paper: faded(palette.paper),
+        paper_2: faded(palette.paper_2),
+        sheet: faded(palette.sheet),
+        ink: faded(palette.ink),
+        graphite: faded(palette.graphite),
+        ash: faded(palette.ash),
+        line: faded(palette.line),
+        blue: faded(palette.blue),
+        blue_2: faded(palette.blue_2),
+        blue_soft: faded(palette.blue_soft),
+        dots: faded(palette.dots),
+        margin_rule: faded(palette.margin_rule),
+    }
+}
+
+/// A rect painted `dy` px below its final position (an entrance rise).
+fn shifted(rect: Rect, dy: f32) -> Rect {
+    Rect::xywh(rect.origin.x, rect.origin.y + dy, rect.size.x, rect.size.y)
 }
 
 fn blue(surface: &HomeSurface<'_>) -> Color {
@@ -130,10 +160,10 @@ fn paint_button(
     hit: HomeHit,
     active: bool,
     text_label: &str,
+    palette: HomePalette,
 ) {
     let hovered = surface.state.hover == Some(hit);
     let pressed = surface.state.pressed == Some(hit);
-    let palette = home_palette(surface);
     let fill = if active { palette.ink } else { palette.sheet };
     let fg = if active { palette.paper } else { palette.ink };
     cx.backend.fill_round_rect(rect, rect.size.y / 2.0, fill);
@@ -142,16 +172,16 @@ fn paint_button(
             rect,
             rect.size.y / 2.0,
             if pressed {
-                palette.blue.with_alpha(0.20)
+                fade(palette.blue, 0.20)
             } else {
-                palette.graphite.with_alpha(0.10)
+                fade(palette.graphite, 0.10)
             },
         );
     }
     cx.backend.stroke_round_rect(
         rect,
         rect.size.y / 2.0,
-        if active { palette.ink } else { line(surface) },
+        if active { palette.ink } else { palette.line },
         1.0,
     );
     let width = rect.size.x;
@@ -194,6 +224,11 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
     );
 
     paint_wordmark(surface, cx, rect);
+    // Footer + 专业模式 fade in together over the last window, fade only.
+    let shown_at = surface.state.shown_at_ms;
+    let enter = |block, index| home_enter(block, index, shown_at, surface.now_ms);
+    let (_, chrome_alpha) = enter(HomeEnterBlock::Footer, 0);
+    let chrome_palette = faded(palette, chrome_alpha);
     text(
         cx,
         "专业模式 · 直接进画布 →",
@@ -202,7 +237,7 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
             layout.professional.origin.y + 19.0,
         ),
         13.0,
-        graphite(surface),
+        chrome_palette.graphite,
         SANS,
     );
     if surface.state.hover == Some(HomeHit::Professional) {
@@ -215,7 +250,7 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
                 layout.professional.origin.x + layout.professional.size.x,
                 layout.professional.origin.y + 25.0,
             ),
-            palette.blue,
+            chrome_palette.blue,
             1.0,
         );
     }
@@ -230,15 +265,17 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
     let headline_text = "你想做成什么？";
     let spacing = 52.0 * 0.01;
     let headline_width = spaced_width(cx, headline_text, 52.0, headline_family, spacing);
+    let (headline_dy, headline_alpha) = enter(HomeEnterBlock::Headline, 0);
+    let headline_y = layout.headline.origin.y + headline_dy;
     draw_spaced_text(
         cx,
         headline_text,
         Point2D::new(
             layout.headline.origin.x + (layout.headline.size.x - headline_width) / 2.0,
-            layout.headline.origin.y + 43.0,
+            headline_y + 43.0,
         ),
         52.0,
-        palette.ink,
+        faded(palette, headline_alpha).ink,
         headline_family,
         600,
         spacing,
@@ -249,42 +286,61 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
             .measure_text_family("你想", 52.0, headline_family)
         + spacing * 2.0;
     let underline_width = spaced_width(cx, "做成什么", 52.0, headline_family, spacing);
-    paint_wavy_underline(
-        cx,
-        underline_start,
-        layout.headline.origin.y + 50.0,
-        underline_width,
-        palette.blue,
-    );
+    // The underline draws on after the headline has settled: only the
+    // first fraction of the wavy path paints, in that same fraction's
+    // alpha.
+    let (_, underline_fraction) = enter(HomeEnterBlock::Underline, 0);
+    if underline_fraction > 0.0 {
+        paint_wavy_underline(
+            cx,
+            underline_start,
+            headline_y + 50.0,
+            underline_width * underline_fraction,
+            faded(palette, underline_fraction).blue,
+        );
+    }
+    let (subtitle_dy, subtitle_alpha) = enter(HomeEnterBlock::Subtitle, 0);
     text(
         cx,
         "先说要做成的东西，再放你的文字或截图。画布还在，随时进。",
         Point2D::new(
             layout.subtitle.origin.x + 44.0,
-            layout.subtitle.origin.y + 16.0,
+            layout.subtitle.origin.y + subtitle_dy + 16.0,
         ),
         15.0,
-        graphite(surface),
+        faded(palette, subtitle_alpha).graphite,
         SANS,
     );
 
-    paint_sheet(surface, cx, layout);
+    let (sheet_dy, sheet_alpha) = enter(HomeEnterBlock::Sheet, 0);
+    paint_sheet(surface, cx, layout, sheet_dy, faded(palette, sheet_alpha));
     for (index, family) in HomeFamily::ALL.into_iter().enumerate() {
+        let (chip_dy, chip_alpha) = enter(HomeEnterBlock::Chip, index);
         paint_button(
             surface,
             cx,
-            layout.chips[index],
+            shifted(layout.chips[index], chip_dy),
             HomeHit::Chip(family),
             surface.state.bound == Some(family),
             family.label(),
+            faded(palette, chip_alpha),
         );
     }
+    // The expected row never moves on entrance.
     paint_expected(surface, cx, layout);
     for (index, family) in HomeFamily::ALL.into_iter().enumerate() {
-        paint_card(surface, cx, layout.cards[index], family);
+        let (card_dy, card_alpha) = enter(HomeEnterBlock::Card, index);
+        paint_card(
+            surface,
+            cx,
+            shifted(layout.cards[index], card_dy),
+            family,
+            faded(palette, card_alpha),
+            card_alpha,
+        );
     }
     cx.backend.restore();
-    paint_footer(surface, cx, layout);
+    paint_footer(cx, layout, chrome_palette);
 }
 
 fn headline_family(surface: &HomeSurface<'_>) -> &'static str {
@@ -338,31 +394,44 @@ fn paint_wordmark(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect) {
     let _ = rect;
 }
 
-fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayout) {
-    let palette = home_palette(surface);
+fn paint_sheet(
+    surface: &HomeSurface<'_>,
+    cx: &mut PaintCx<'_>,
+    layout: HomeLayout,
+    rise: f32,
+    palette: HomePalette,
+) {
+    // The whole drafting sheet (input, refs, send) enters as one block:
+    // every rect paints `rise` px below its final position.
+    let sheet = shifted(layout.sheet, rise);
+    let sheet_text = shifted(layout.sheet_text, rise);
+    let screenshot = shifted(layout.screenshot, rise);
+    let reference_link = shifted(layout.reference_link, rise);
+    let figma = shifted(layout.figma, rise);
+    let example = shifted(layout.example, rise);
+    let send = shifted(layout.send, rise);
     // Home owns its focus treatment. The editor's normal blue ring must not
     // leak into the drafting-table surface.
     cx.backend.fill_drop_shadow(
         Rect::xywh(
-            layout.sheet.origin.x - 3.0,
-            layout.sheet.origin.y - 3.0,
-            layout.sheet.size.x + 6.0,
-            layout.sheet.size.y + 6.0,
+            sheet.origin.x - 3.0,
+            sheet.origin.y - 3.0,
+            sheet.size.x + 6.0,
+            sheet.size.y + 6.0,
         ),
         14.0,
         6.0,
-        palette.blue_soft.with_alpha(0.55),
+        fade(palette.blue_soft, 0.55),
     );
+    cx.backend.fill_round_rect(sheet, 14.0, palette.sheet);
     cx.backend
-        .fill_round_rect(layout.sheet, 14.0, palette.sheet);
-    cx.backend
-        .stroke_round_rect(layout.sheet, 14.0, palette.blue.with_alpha(0.55), 1.0);
+        .stroke_round_rect(sheet, 14.0, fade(palette.blue, 0.55), 1.0);
     for tick in 1..28 {
-        let x = layout.sheet.origin.x + tick as f32 * 22.0;
+        let x = sheet.origin.x + tick as f32 * 22.0;
         cx.backend.stroke_line(
-            Point2D::new(x, layout.sheet.origin.y),
-            Point2D::new(x, layout.sheet.origin.y + 9.0),
-            palette.line.with_alpha(0.45),
+            Point2D::new(x, sheet.origin.y),
+            Point2D::new(x, sheet.origin.y + 9.0),
+            fade(palette.line, 0.45),
             1.0,
         );
     }
@@ -376,10 +445,10 @@ fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayo
         cx,
         &input_theme,
         &surface.state.input,
-        layout.sheet_text,
+        sheet_text,
         16.0,
         0.0,
-        layout.sheet_text.origin.y + 25.0,
+        sheet_text.origin.y + 25.0,
         surface.now_ms,
         if surface.state.draft.is_empty() {
             placeholder
@@ -389,22 +458,17 @@ fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayo
         surface.state.visible,
     );
     let refs = [
+        (screenshot, HomeHit::Attachment, "截图", Some(Icon::Image)),
         (
-            layout.screenshot,
-            HomeHit::Attachment,
-            "截图",
-            Some(Icon::Image),
-        ),
-        (
-            layout.reference_link,
+            reference_link,
             HomeHit::ReferenceLink,
             "参考链接",
             Some(Icon::ArrowUpRight),
         ),
         // The Figma row carries the brand mark, not a lucide glyph.
-        (layout.figma, HomeHit::Figma, "Figma", None),
+        (figma, HomeHit::Figma, "Figma", None),
         (
-            layout.example,
+            example,
             HomeHit::TryExample,
             "试试这个示例",
             Some(Icon::Sparkles),
@@ -417,7 +481,7 @@ fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayo
         let color = match hit {
             HomeHit::TryExample if hovered => palette.blue_2,
             HomeHit::TryExample => palette.blue,
-            _ if disabled => palette.graphite.with_alpha(0.65),
+            _ if disabled => fade(palette.graphite, 0.65),
             _ => palette.graphite,
         };
         if hovered && !disabled {
@@ -450,19 +514,18 @@ fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayo
         }
     }
     let send_fill = if surface.state.draft.trim().is_empty() {
-        palette.ink.with_alpha(0.28)
+        fade(palette.ink, 0.28)
     } else {
         palette.blue
     };
-    cx.backend.fill_oval(layout.send, send_fill);
+    cx.backend.fill_oval(send, send_fill);
     if surface.state.pressed == Some(HomeHit::Send) {
-        cx.backend
-            .stroke_oval(layout.send, palette.ink.with_alpha(0.30), 2.0);
+        cx.backend.stroke_oval(send, fade(palette.ink, 0.30), 2.0);
     }
     draw_icon(
         cx.backend,
         Icon::ArrowUp,
-        Point2D::new(layout.send.origin.x + 11.0, layout.send.origin.y + 11.0),
+        Point2D::new(send.origin.x + 11.0, send.origin.y + 11.0),
         18.0,
         palette.paper,
         1.8,
@@ -470,7 +533,7 @@ fn paint_sheet(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayo
     text(
         cx,
         "⏎ 发送",
-        Point2D::new(layout.send.origin.x - 58.0, layout.send.origin.y + 25.0),
+        Point2D::new(send.origin.x - 58.0, send.origin.y + 25.0),
         12.0,
         palette.ash,
         MONO,
@@ -564,117 +627,7 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
     }
 }
 
-/// Corner tag on a family card's art; the App card names its three screens.
-pub(super) fn card_tag_label(family: HomeFamily) -> &'static str {
-    if family == HomeFamily::AppUi {
-        "示例 · 三屏"
-    } else {
-        "示例"
-    }
-}
-
-fn paint_card(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect, family: HomeFamily) {
-    let hover = surface.state.hover == Some(HomeHit::Card(family));
-    let pressed = surface.state.pressed == Some(HomeHit::Card(family));
-    let palette = home_palette(surface);
-    let paint_rect = if hover {
-        Rect::xywh(rect.origin.x, rect.origin.y - 6.0, rect.size.x, rect.size.y)
-    } else {
-        rect
-    };
-    if surface.ui.effective_theme_mode() == ThemeMode::Light {
-        cx.backend.fill_drop_shadow(
-            Rect::xywh(
-                paint_rect.origin.x - 2.0,
-                paint_rect.origin.y + 2.0,
-                paint_rect.size.x + 4.0,
-                paint_rect.size.y + 4.0,
-            ),
-            14.0,
-            8.0,
-            Color::BLACK.with_alpha(0.10),
-        );
-    }
-    cx.backend.fill_round_rect(paint_rect, 14.0, palette.sheet);
-    if hover || pressed {
-        cx.backend.fill_round_rect(
-            paint_rect,
-            14.0,
-            palette.blue.with_alpha(if pressed { 0.18 } else { 0.08 }),
-        );
-    }
-    cx.backend.stroke_round_rect(
-        paint_rect,
-        14.0,
-        if surface.state.bound == Some(family) {
-            palette.blue
-        } else {
-            palette.line
-        },
-        1.0,
-    );
-    let art = Rect::xywh(
-        paint_rect.origin.x,
-        paint_rect.origin.y,
-        paint_rect.size.x,
-        (paint_rect.size.y.min(200.0) - 64.0).max(40.0),
-    );
-    cx.backend.fill_rect(art, palette.paper_2);
-    match family {
-        HomeFamily::AppUi => paint_app_flow(surface, cx, art),
-        HomeFamily::KnowledgeCards => {
-            paint_template_preview(surface, cx, art, "knowledge-carousel")
-        }
-        HomeFamily::ScreenshotTutorial => {
-            paint_template_preview(surface, cx, art, "screenshot-tutorial")
-        }
-        HomeFamily::EventPoster => paint_template_preview(surface, cx, art, "event-poster-deck"),
-    }
-    // The tag is the art's topmost layer (prototype `.card .tag`): it
-    // paints after the family art so the App card's first phone cannot
-    // cover it.
-    let tag_label = card_tag_label(family);
-    let label_w = cx.backend.measure_text_family(tag_label, 11.0, MONO);
-    let tag_w = (label_w + 16.0).max(44.0);
-    let tag = Rect::xywh(art.origin.x + 12.0, art.origin.y + 12.0, tag_w, 22.0);
-    cx.backend
-        .fill_round_rect(tag, 7.0, palette.sheet.with_alpha(0.86));
-    text(
-        cx,
-        tag_label,
-        Point2D::new(tag.origin.x + 8.0, tag.origin.y + 15.0),
-        11.0,
-        palette.graphite,
-        MONO,
-    );
-    let title_y = paint_rect.origin.y + paint_rect.size.y - 43.0;
-    text_weighted(
-        cx,
-        family.label(),
-        Point2D::new(paint_rect.origin.x + 14.0, title_y),
-        15.0,
-        palette.ink,
-        SANS,
-        650,
-    );
-    let desc = match family {
-        HomeFamily::AppUi => "一句话或一张截图，到可编辑的高保真界面",
-        HomeFamily::KnowledgeCards => "把这段文字做成一套今天能发的图",
-        HomeFamily::ScreenshotTutorial => "把几张截图串成一篇步骤图",
-        HomeFamily::EventPoster => "做一组完整一致的活动视觉",
-    };
-    text(
-        cx,
-        desc,
-        Point2D::new(paint_rect.origin.x + 14.0, title_y + 22.0),
-        12.5,
-        palette.graphite,
-        SANS,
-    );
-}
-
-fn paint_footer(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeLayout) {
-    let palette = home_palette(surface);
+fn paint_footer(cx: &mut PaintCx<'_>, layout: HomeLayout, palette: HomePalette) {
     text(
         cx,
         "最近项目（空）",

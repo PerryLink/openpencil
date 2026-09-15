@@ -206,7 +206,7 @@ fn load_into_host(
     let loaded = loaded?;
     let mut state = loaded.state;
     preserve_app_preferences(host.editor_state(), &mut state);
-    state.editor_ui.home.visible = false;
+    state.editor_ui.home.hide();
     let bound_path = crate::legacy_op_upgrade::prompt_and_save(
         &mut state,
         path,
@@ -386,7 +386,7 @@ pub fn run_action(
             }
             let mut state = EditorState::starter();
             preserve_app_preferences(host.editor_state(), &mut state);
-            state.editor_ui.home.visible = false;
+            state.editor_ui.home.hide();
             if !host.replace_editor_state(state) {
                 return ActionOutcome::Noop;
             }

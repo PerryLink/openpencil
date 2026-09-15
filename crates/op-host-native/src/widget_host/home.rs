@@ -57,7 +57,7 @@ impl WidgetHostNative {
                 self.editor_state.editor_ui.home.set_draft(draft);
             }
             HomeHit::Professional => {
-                self.editor_state.editor_ui.home.visible = false;
+                self.editor_state.editor_ui.home.hide();
                 self.editor_state.editor_ui.entry_surface = EntrySurface::Canvas;
             }
             HomeHit::Send => {
@@ -122,7 +122,7 @@ impl WidgetHostNative {
             .editor_ui
             .result_view
             .arm_for_generation(family, brief);
-        self.editor_state.editor_ui.home.visible = false;
+        self.editor_state.editor_ui.home.hide();
         self.editor_state.chat.focus_input_at_end(self.now_ms);
         self.editor_state.chat.set_input_text(prompt);
         let sent = self.editor_state.chat.begin_send();
@@ -227,6 +227,38 @@ mod tests {
 
     const W: f32 = 1440.0;
     const H: f32 = 900.0;
+
+    /// Paint one Home frame into a fresh raster surface (the same harness
+    /// shape the pan-cache tests use) so the stamping in `paint` runs.
+    fn paint_home_once(host: &mut WidgetHostNative) {
+        let mut backend = crate::backend::NativeBackend::with_dpi(1.0);
+        let mut surface =
+            skia_safe::surfaces::raster_n32_premul((320, 240)).expect("raster surface allocated");
+        surface.canvas().clear(skia_safe::Color::WHITE);
+        let mut frame = crate::backend::NativeFrameBackend::new(&mut backend, surface.canvas());
+        host.paint(&mut frame, 320.0, 240.0);
+    }
+
+    #[test]
+    fn painting_home_stamps_the_entrance_clock_and_hiding_resets_it() {
+        let mut host = WidgetHostNative::new();
+        host.editor_state.editor_ui.home.visible = true;
+        host.set_now_ms(5_000);
+        paint_home_once(&mut host);
+        assert_eq!(host.editor_state().editor_ui.home.shown_at_ms, 5_000);
+
+        host.editor_state_mut().editor_ui.home.hide();
+        assert_eq!(
+            host.editor_state().editor_ui.home.shown_at_ms,
+            0,
+            "hiding resets the stamp so the next show animates again"
+        );
+
+        host.editor_state_mut().editor_ui.home.visible = true;
+        host.set_now_ms(20_000);
+        paint_home_once(&mut host);
+        assert_eq!(host.editor_state().editor_ui.home.shown_at_ms, 20_000);
+    }
 
     #[test]
     fn home_typing_and_enter_queue_the_wrapped_chat_turn() {

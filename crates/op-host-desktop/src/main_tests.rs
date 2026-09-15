@@ -551,3 +551,23 @@ fn design_md_auto_generate_does_not_fall_back_to_local_extraction() {
         .expect("previous design.md restored");
     assert_eq!(restored.project_name.as_deref(), Some("Existing"));
 }
+
+#[test]
+fn first_window_show_rearms_the_home_entrance_once() {
+    let mut app = DesktopApp::new(None);
+    app.host.editor_state_mut().editor_ui.home.visible = true;
+    app.host.editor_state_mut().editor_ui.home.shown_at_ms = 700;
+    app.on_window_shown();
+    assert_eq!(
+        app.host.editor_state().editor_ui.home.shown_at_ms,
+        0,
+        "the entrance replays once the window is really on screen"
+    );
+    app.host.editor_state_mut().editor_ui.home.shown_at_ms = 9_000;
+    app.on_window_shown();
+    assert_eq!(
+        app.host.editor_state().editor_ui.home.shown_at_ms,
+        9_000,
+        "later focus or occlusion changes never replay it"
+    );
+}
