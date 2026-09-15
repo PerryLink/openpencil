@@ -73,6 +73,7 @@ pub struct Fingerprint {
     preferred_agent_team_size: u32,
     entry_surface: op_editor_core::EntrySurface,
     chat_agent: String,
+    chat_model: String,
 }
 
 pub fn fingerprint(state: &EditorState) -> Fingerprint {
@@ -96,6 +97,7 @@ pub fn fingerprint(state: &EditorState) -> Fingerprint {
         preferred_agent_team_size: eui.preferred_agent_team_size,
         entry_surface: eui.entry_surface,
         chat_agent: selected_chat_agent_name(eui),
+        chat_model: selected_chat_model_value(state),
     }
 }
 
@@ -115,6 +117,20 @@ fn selected_chat_agent_name(eui: &op_editor_core::EditorUiState) -> String {
 /// Resolve a persisted agent name back to its `AgentProvider::ALL`
 /// index; unknown names (a provider renamed or removed by a newer
 /// build) fall back to index 0 rather than dangling.
+/// The picker row the user last chose, by the catalog entry's wire
+/// `value` (`builtin:<agent id>:<model>` for API-key agents, the model id
+/// for CLI providers, the agent id for ACP agents). `chat_agent` alone
+/// cannot carry this: a built-in or ACP choice never moves
+/// `chat_selected_agent`, so without this field every relaunch fell back
+/// to the first catalog row.
+fn selected_chat_model_value(state: &EditorState) -> String {
+    state
+        .chat
+        .selected_model_entry()
+        .map(|entry| entry.value.clone())
+        .unwrap_or_default()
+}
+
 fn chat_agent_index_for_name(name: &str) -> usize {
     op_editor_core::AgentProvider::ALL
         .iter()
@@ -188,6 +204,10 @@ struct SettingsPayload {
     /// `selected_chat_agent_name`); older settings keep index 0.
     #[serde(default)]
     chat_agent: Option<String>,
+    /// The last chosen picker row by catalog `value` (see
+    /// `selected_chat_model_value`); resolved after the catalog is rebuilt.
+    #[serde(default)]
+    chat_model: Option<String>,
 }
 
 /// Resolve the platform-specific settings path. `None` when no
@@ -262,6 +282,7 @@ fn to_payload(state: &EditorState) -> SettingsPayload {
         preferred_agent_team_size: Some(eui.preferred_agent_team_size),
         entry_surface: Some(eui.entry_surface.as_str().into()),
         chat_agent: Some(selected_chat_agent_name(eui)),
+        chat_model: Some(selected_chat_model_value(state)),
     }
 }
 
@@ -274,6 +295,7 @@ fn apply_payload_with_options(
     payload: SettingsPayload,
     dedupe_builtins: bool,
 ) {
+    let chat_model = payload.chat_model.clone();
     if payload.version != SETTINGS_VERSION {
         return;
     }
@@ -394,6 +416,19 @@ fn apply_payload_with_options(
     // empty this early, so this is a no-op until discovery lands and
     // `ModelProbe::poll_into` rebuilds again against the same mask.
     state.rebuild_chat_models();
+    // Now that the catalog exists, land on the row the user last chose.
+    // Later rebuilds (model discovery) preserve the selection by the same
+    // provider + value + built-in id triple.
+    if let Some(value) = chat_model.as_deref().filter(|v| !v.is_empty()) {
+        if let Some(index) = state
+            .chat
+            .available_models
+            .iter()
+            .position(|entry| entry.value == value)
+        {
+            state.chat.selected_model = index;
+        }
+    }
 }
 
 /// Remove the retired Gemini CLI slot from positional v1 settings without
@@ -716,3 +751,7 @@ mod settings_io_chat_agent_tests;
 #[cfg(test)]
 #[path = "settings_io_guard_tests.rs"]
 mod settings_io_guard_tests;
+
+#[cfg(test)]
+#[path = "settings_io_chat_model_tests.rs"]
+mod settings_io_chat_model_tests;
