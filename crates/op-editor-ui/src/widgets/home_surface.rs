@@ -64,8 +64,6 @@ pub struct HomeLayout {
     pub figma: Rect,
     pub example: Rect,
     pub send: Rect,
-    /// The "⏎ 发送" hint text slot left of the send circle.
-    pub send_hint: Rect,
     /// The model chip pill left of the hint.
     pub model_chip: Rect,
     pub chips: [Rect; 4],
@@ -109,7 +107,6 @@ impl HomeLayout {
             figma: translate(self.figma),
             example: translate(self.example),
             send: translate(self.send),
-            send_hint: translate(self.send_hint),
             model_chip: translate(self.model_chip),
             chips: self.chips.map(translate),
             expected: translate(self.expected),
@@ -303,30 +300,27 @@ impl<'a> HomeSurface<'a> {
             34.0,
         );
         let refs_top = sheet.origin.y + sheet.size.y - 45.0;
-        let screenshot = Rect::xywh(sheet.origin.x + 24.0, refs_top, 70.0, 28.0);
-        let reference_link = Rect::xywh(screenshot.origin.x + 70.0, refs_top, 108.0, 28.0);
-        let figma = Rect::xywh(reference_link.origin.x + 108.0, refs_top, 68.0, 28.0);
-        let example = Rect::xywh(figma.origin.x + 68.0, refs_top, 126.0, 28.0);
+        // Each entry hugs its content (8 px pad · 14 px icon · 5 px · label ·
+        // 8 px pad) so the hover pill and the hit rect are the same shape;
+        // widths are the 13 px sans estimates (CJK 13 px, Latin 7.2 px).
+        let screenshot = Rect::xywh(sheet.origin.x + 16.0, refs_top, 61.0, 28.0);
+        let reference_link = Rect::xywh(screenshot.origin.x + 61.0 + 10.0, refs_top, 87.0, 28.0);
+        let figma = Rect::xywh(reference_link.origin.x + 87.0 + 10.0, refs_top, 71.0, 28.0);
+        let example = Rect::xywh(figma.origin.x + 71.0 + 10.0, refs_top, 94.0, 28.0);
         let send = Rect::xywh(
             sheet.origin.x + sheet.size.x - 56.0,
             sheet.origin.y + sheet.size.y - 52.0,
             40.0,
             40.0,
         );
-        // Bottom-row right-aligned group: model chip · 12 px · ⏎ hint ·
-        // 8 px · send. The hint keeps its prototype baseline; the chip
-        // rides the reference row's 28 px band.
-        let send_hint = Rect::xywh(
-            send.origin.x - model::HINT_SEND_GAP - model::SEND_HINT_W,
-            send.origin.y + 8.0,
-            model::SEND_HINT_W,
-            20.0,
-        );
+        // Bottom-row right-aligned group: model chip · 12 px · send. The
+        // round arrow is the one send control; a "⏎ 发送" hint next to it
+        // read as a second button, so the shortcut is not spelled out.
         let chip_w =
             (model::MODEL_CHIP_PREFIX_W + model_chip_label_w + model::MODEL_CHIP_CHEVRON_W)
                 .min(model::MODEL_CHIP_MAX_W);
         let model_chip = Rect::xywh(
-            send_hint.origin.x - model::CHIP_HINT_GAP - chip_w,
+            send.origin.x - model::CHIP_SEND_GAP - chip_w,
             refs_top,
             chip_w,
             model::MODEL_CHIP_H,
@@ -416,7 +410,6 @@ impl<'a> HomeSurface<'a> {
             figma,
             example,
             send,
-            send_hint,
             model_chip,
             chips,
             expected,

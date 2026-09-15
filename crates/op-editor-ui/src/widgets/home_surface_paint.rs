@@ -88,10 +88,6 @@ fn spaced_width(cx: &mut PaintCx<'_>, content: &str, size: f32, family: &str, sp
         - spacing
 }
 
-fn label_color(surface: &HomeSurface<'_>) -> Color {
-    home_palette(surface).ink
-}
-
 fn home_palette(surface: &HomeSurface<'_>) -> HomePalette {
     HomePalette::for_mode(surface.ui.effective_theme_mode())
 }
@@ -191,7 +187,7 @@ fn paint_button(
         text_label,
         Point2D::new(
             rect.origin.x + (width - approx) / 2.0,
-            rect.origin.y + rect.size.y / 2.0 + 5.0,
+            jian_widgets::centered_text_baseline_y(rect, 14.0),
         ),
         14.0,
         fg,
@@ -216,13 +212,6 @@ pub(super) fn paint_home(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: 
         }
         x += 24.0;
     }
-    cx.backend.stroke_line(
-        Point2D::new(56.0, 0.0),
-        Point2D::new(56.0, rect.size.y),
-        palette.margin_rule,
-        1.0,
-    );
-
     paint_wordmark(surface, cx, rect);
     // Footer + 专业模式 fade in together over the last window, fade only.
     let shown_at = surface.state.shown_at_ms;
@@ -426,29 +415,52 @@ fn paint_wavy_underline(
 }
 
 fn paint_wordmark(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect) {
-    let mark = Rect::xywh(80.0, 22.0, 18.0, 18.0);
-    cx.backend
-        .stroke_round_rect(mark, 4.0, label_color(surface), 1.5);
-    // The 8 px square rotated 45° from the prototype wordmark.
-    let (cx0, cy0, r) = (89.0, 31.0, 5.6);
-    cx.backend.fill_polygon(
-        &[
-            Point2D::new(cx0, cy0 - r),
-            Point2D::new(cx0 + r, cy0),
-            Point2D::new(cx0, cy0 + r),
-            Point2D::new(cx0 - r, cy0),
-        ],
-        blue(surface),
+    // The official mark, the same raster the sign-in badge uses.
+    // A proper lockup instead of a timid 14 px label: the official mark on
+    // a 32 px app-icon tile with a pool shadow, the name in 18 px bold,
+    // and the surface's own name in the Song face after a hairline rule.
+    let palette = home_palette(surface);
+    let mark = Rect::xywh(76.0, 14.0, 32.0, 32.0);
+    cx.backend.fill_drop_shadow(
+        Rect::xywh(mark.origin.x + 4.0, mark.origin.y + 8.0, 24.0, 24.0),
+        9.0,
+        10.0,
+        fade(palette.ink, 0.18),
     );
+    cx.backend.fill_round_rect(mark, 9.0, Color::WHITE);
+    if !crate::widgets::login_modal::paint_brand_logo_png(cx.backend, mark) {
+        cx.backend
+            .fill_round_rect(mark, 9.0, fade(blue(surface), 0.25));
+    }
+    cx.backend.stroke_round_rect(mark, 9.0, palette.line, 1.0);
+    let name_x = 120.0;
+    let baseline = jian_widgets::centered_text_baseline_y(mark, 18.0);
     draw_spaced_text(
         cx,
         "OpenPencil",
-        Point2D::new(108.0, 36.0),
-        14.0,
-        label_color(surface),
+        Point2D::new(name_x, baseline),
+        18.0,
+        palette.ink,
         SANS,
+        700,
+        -0.2,
+    );
+    let name_w = spaced_width(cx, "OpenPencil", 18.0, SANS, -0.2);
+    let rule_x = name_x + name_w + 14.0;
+    cx.backend.stroke_line(
+        Point2D::new(rule_x, mark.origin.y + 7.0),
+        Point2D::new(rule_x, mark.origin.y + mark.size.y - 7.0),
+        palette.line,
+        1.0,
+    );
+    text_weighted(
+        cx,
+        "制图台",
+        Point2D::new(rule_x + 14.0, baseline),
+        16.0,
+        palette.graphite,
+        headline_family(surface),
         600,
-        0.28,
     );
     let _ = rect;
 }
@@ -580,25 +592,28 @@ fn paint_sheet(
             _ if disabled => fade(palette.graphite, 0.65),
             _ => palette.graphite,
         };
+        // The pill IS the entry rect: content-hugging, icon and label
+        // both centred on the same row.
+        let pill = Rect::xywh(rect.origin.x, rect.origin.y + 2.0, rect.size.x, 24.0);
         if hovered && !disabled {
-            cx.backend.fill_round_rect(rect, 8.0, palette.paper_2);
+            cx.backend.fill_round_rect(pill, 8.0, palette.paper_2);
         }
-        let icon_origin = Point2D::new(rect.origin.x, rect.origin.y + 6.0);
+        let icon_origin = Point2D::new(rect.origin.x + 8.0, pill.origin.y + 5.0);
         let label_x = match icon {
             RefIcon::Lucide(icon) => {
                 draw_icon(cx.backend, icon, icon_origin, 14.0, color, 1.25);
-                rect.origin.x + 19.0
+                rect.origin.x + 27.0
             }
             RefIcon::Figma => {
                 paint_figma_logo(cx.backend, icon_origin, 14.0, color);
-                rect.origin.x + 19.0
+                rect.origin.x + 27.0
             }
-            RefIcon::None => rect.origin.x + 4.0,
+            RefIcon::None => rect.origin.x + 8.0,
         };
         text(
             cx,
             label,
-            Point2D::new(label_x, rect.origin.y + 19.0),
+            Point2D::new(label_x, jian_widgets::centered_text_baseline_y(pill, 13.0)),
             13.0,
             color,
             SANS,
@@ -635,15 +650,6 @@ fn paint_sheet(
         palette.paper,
         1.8,
     );
-    let send_hint = shifted(layout.send_hint, rise);
-    text(
-        cx,
-        "⏎ 发送",
-        Point2D::new(send_hint.origin.x, send_hint.origin.y + 17.0),
-        12.0,
-        palette.ash,
-        MONO,
-    );
     super::model::paint_model_chip(surface, cx, shifted(layout.model_chip, rise), palette);
 }
 
@@ -652,10 +658,11 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
     let Some(family) = surface.state.bound else {
         return;
     };
+    let row_baseline = jian_widgets::centered_text_baseline_y(layout.expected, 13.0);
     text(
         cx,
         "预期产物：",
-        Point2D::new(layout.expected.origin.x, layout.expected.origin.y + 20.0),
+        Point2D::new(layout.expected.origin.x, row_baseline),
         13.0,
         palette.graphite,
         SANS,
@@ -668,7 +675,7 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
         text(
             cx,
             output,
-            Point2D::new(x + 10.0, layout.expected.origin.y + 18.0),
+            Point2D::new(x + 10.0, jian_widgets::centered_text_baseline_y(pill, 12.0)),
             12.0,
             palette.blue_2,
             SANS,
@@ -679,10 +686,7 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
         text(
             cx,
             "给哪种设备？",
-            Point2D::new(
-                layout.expected.origin.x + 374.0,
-                layout.expected.origin.y + 18.0,
-            ),
+            Point2D::new(layout.expected.origin.x + 374.0, row_baseline),
             13.0,
             palette.graphite,
             SANS,
@@ -701,36 +705,32 @@ fn paint_expected(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, layout: HomeL
         cx.backend
             .stroke_round_rect(inactive, 13.0, palette.line, 1.0);
         cx.backend.fill_round_rect(active, 13.0, palette.ink);
-        text(
-            cx,
-            "手机",
-            Point2D::new(
-                layout.device_mobile.origin.x + 9.0,
-                layout.device_mobile.origin.y + 18.0,
+        // Segment labels sit dead-centre in their pills.
+        for (label, pill, on) in [
+            (
+                "手机",
+                layout.device_mobile,
+                surface.state.device == HomeDevice::Mobile,
             ),
-            12.0,
-            if surface.state.device == HomeDevice::Mobile {
-                palette.paper
-            } else {
-                palette.graphite
-            },
-            SANS,
-        );
-        text(
-            cx,
-            "桌面",
-            Point2D::new(
-                layout.device_desktop.origin.x + 9.0,
-                layout.device_desktop.origin.y + 18.0,
+            (
+                "桌面",
+                layout.device_desktop,
+                surface.state.device == HomeDevice::Desktop,
             ),
-            12.0,
-            if surface.state.device == HomeDevice::Desktop {
-                palette.paper
-            } else {
-                palette.graphite
-            },
-            SANS,
-        );
+        ] {
+            let w = cx.backend.measure_text_family(label, 12.0, SANS);
+            text(
+                cx,
+                label,
+                Point2D::new(
+                    pill.origin.x + (pill.size.x - w) / 2.0,
+                    jian_widgets::centered_text_baseline_y(pill, 12.0),
+                ),
+                12.0,
+                if on { palette.paper } else { palette.graphite },
+                SANS,
+            );
+        }
     }
 }
 

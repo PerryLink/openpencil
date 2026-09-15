@@ -96,15 +96,12 @@ fn home_hit_test_resolves_chip_and_send() {
 }
 
 #[test]
-fn model_chip_sits_left_of_the_send_hint_inside_the_sheet() {
+fn model_chip_sits_left_of_the_send_button_inside_the_sheet() {
     let layout = HomeSurface::layout_for(1440.0, 900.0, None, 60.0);
-    // Right-aligned group: chip · 12 px · hint · 8 px · send.
+    // Right-aligned group: chip · 12 px · send — no "⏎ 发送" hint, which
+    // read as a second send button.
     assert_close(
-        layout.send.origin.x - (layout.send_hint.origin.x + layout.send_hint.size.x),
-        8.0,
-    );
-    assert_close(
-        layout.send_hint.origin.x - (layout.model_chip.origin.x + layout.model_chip.size.x),
+        layout.send.origin.x - (layout.model_chip.origin.x + layout.model_chip.size.x),
         12.0,
     );
     assert_eq!(layout.model_chip.size.y, 28.0);

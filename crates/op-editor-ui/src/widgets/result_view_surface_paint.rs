@@ -91,24 +91,27 @@ fn truncate_brief(brief: &str) -> String {
 }
 
 fn paint_wordmark(cx: &mut PaintCx<'_>, ink: Color, blue: Color) {
-    let mark = Rect::xywh(80.0, 22.0, 18.0, 18.0);
-    cx.backend.stroke_round_rect(mark, 4.0, ink, 1.5);
-    // The 8 px square rotated 45° from the prototype wordmark.
-    let (cx0, cy0, r) = (89.0, 31.0, 5.6);
-    cx.backend.fill_polygon(
-        &[
-            Point2D::new(cx0, cy0 - r),
-            Point2D::new(cx0 + r, cy0),
-            Point2D::new(cx0, cy0 + r),
-            Point2D::new(cx0 - r, cy0),
-        ],
-        blue,
+    // Same lockup as Home: the official mark on a 32 px app-icon tile with
+    // a pool shadow and the name in 18 px bold.
+    let mark = Rect::xywh(76.0, 14.0, 32.0, 32.0);
+    cx.backend.fill_drop_shadow(
+        Rect::xywh(mark.origin.x + 4.0, mark.origin.y + 8.0, 24.0, 24.0),
+        9.0,
+        10.0,
+        fade(ink, 0.18),
     );
-    let mut x = 108.0;
+    cx.backend.fill_round_rect(mark, 9.0, Color::WHITE);
+    if !crate::widgets::login_modal::paint_brand_logo_png(cx.backend, mark) {
+        cx.backend.fill_round_rect(mark, 9.0, fade(blue, 0.25));
+    }
+    cx.backend
+        .stroke_round_rect(mark, 9.0, fade(ink, 0.18), 1.0);
+    let baseline = jian_widgets::centered_text_baseline_y(mark, 18.0);
+    let mut x = 120.0;
     for character in "OpenPencil".chars() {
         let glyph = character.to_string();
-        text_weighted(cx, &glyph, Point2D::new(x, 36.0), 14.0, ink, SANS, 600);
-        x += cx.backend.measure_text_family(&glyph, 14.0, SANS) + 0.28;
+        text_weighted(cx, &glyph, Point2D::new(x, baseline), 18.0, ink, SANS, 700);
+        x += cx.backend.measure_text_family(&glyph, 18.0, SANS) - 0.2;
     }
 }
 
@@ -126,12 +129,6 @@ fn paint_ground(cx: &mut PaintCx<'_>, rect: Rect, palette: super::HomePalette) {
         }
         x += 24.0;
     }
-    cx.backend.stroke_line(
-        Point2D::new(56.0, 0.0),
-        Point2D::new(56.0, rect.size.y),
-        palette.margin_rule,
-        1.0,
-    );
 }
 
 #[allow(clippy::too_many_arguments)]

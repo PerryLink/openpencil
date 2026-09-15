@@ -213,20 +213,31 @@ fn paint_brand_badge(backend: &mut dyn RenderBackend, theme: &Theme, panel: Rect
         Color::BLACK.with_alpha(if theme.background.r < 0.5 { 0.30 } else { 0.14 }),
     );
 
+    if !paint_brand_logo_png(backend, badge) {
+        // One-frame decode fallback: preserve the official white tile without
+        // flashing the old generic pencil glyph.
+        backend.fill_round_rect(shadow, 11.0, Color::WHITE);
+    }
+}
+
+/// Draw the official OpenPencil mark (`brand-logo-128.png`) into `rect`.
+/// Returns `false` for the one frame the raster is still decoding, so the
+/// caller can paint its own placeholder; the Home wordmark and the sign-in
+/// badge share this so the product never shows two different logos.
+pub fn paint_brand_logo_png(backend: &mut dyn RenderBackend, rect: Rect) -> bool {
     if !has_cached_image_bytes(BRAND_LOGO_IMAGE_ID) {
         store_remote_image_bytes(BRAND_LOGO_IMAGE_ID, BRAND_LOGO_PNG.to_vec());
     }
-    let max_edge_px = required_raster_edge(badge, backend.dpi_scale());
+    let max_edge_px = required_raster_edge(rect, backend.dpi_scale());
     let sharp_enough = backend.image_decoded(BRAND_LOGO_IMAGE_ID, BRAND_LOGO_PNG, max_edge_px);
     if !sharp_enough {
         note_pending_decode(BRAND_LOGO_IMAGE_ID, max_edge_px);
     }
     if sharp_enough || backend.image_resident(BRAND_LOGO_IMAGE_ID) {
-        backend.draw_image(badge, BRAND_LOGO_IMAGE_ID, BRAND_LOGO_PNG);
+        backend.draw_image(rect, BRAND_LOGO_IMAGE_ID, BRAND_LOGO_PNG);
+        true
     } else {
-        // One-frame decode fallback: preserve the official white tile without
-        // flashing the old generic pencil glyph.
-        backend.fill_round_rect(shadow, 11.0, Color::WHITE);
+        false
     }
 }
 

@@ -20,12 +20,8 @@ pub const MODEL_CHIP_CHEVRON_W: f32 = 22.0;
 /// anchors the sheet's bottom-left on the narrowest supported sheet.
 pub const MODEL_CHIP_MAX_W: f32 = 180.0;
 
-/// Width of the fixed "⏎ 发送" hint text slot left of the send button.
-pub const SEND_HINT_W: f32 = 50.0;
-/// Gap between the hint's right edge and the send circle.
-pub const HINT_SEND_GAP: f32 = 8.0;
-/// Gap between the model chip's right edge and the hint.
-pub const CHIP_HINT_GAP: f32 = 12.0;
+/// Gap between the model chip's right edge and the send circle.
+pub const CHIP_SEND_GAP: f32 = 12.0;
 
 /// Width of the Home-anchored model picker card.
 pub const HOME_MODEL_PICKER_W: f32 = 300.0;
@@ -116,7 +112,10 @@ pub(super) fn paint_model_chip(
     draw_icon(
         cx.backend,
         Icon::Zap,
-        Point2D::new(rect.origin.x + 10.0, rect.origin.y + 7.0),
+        Point2D::new(
+            rect.origin.x + 10.0,
+            rect.origin.y + (rect.size.y - 13.0) / 2.0,
+        ),
         13.0,
         palette.graphite,
         1.4,
@@ -133,13 +132,19 @@ pub(super) fn paint_model_chip(
     );
     cx.backend.draw_text(
         &layout,
-        Point2D::new(rect.origin.x + MODEL_CHIP_PREFIX_W, rect.origin.y + 19.0),
+        Point2D::new(
+            rect.origin.x + MODEL_CHIP_PREFIX_W,
+            jian_widgets::centered_text_baseline_y(rect, 13.0),
+        ),
     );
     if usable {
         draw_icon(
             cx.backend,
             Icon::ChevronDown,
-            Point2D::new(rect.origin.x + rect.size.x - 16.0, rect.origin.y + 8.0),
+            Point2D::new(
+                rect.origin.x + rect.size.x - 16.0,
+                rect.origin.y + (rect.size.y - 12.0) / 2.0,
+            ),
             12.0,
             palette.graphite,
             1.4,
