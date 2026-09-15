@@ -183,6 +183,13 @@ fn app_state_string(engine: &mut OpEngine, key: &str) -> Option<String> {
 /// times (fresh host clock is 0).
 #[test]
 fn dedicated_time_stamped_pointer_entries_swipe_without_an_intervening_frame() {
+    // `next_animation_deadline_ms` folds the PROCESS-GLOBAL agent
+    // indicator registry, so a concurrent test that registers a reveal
+    // makes this idle engine report a deadline it does not own. Hold the
+    // registry's own test guard for the whole body, the way the desktop
+    // indicator tests do.
+    let _indicators = op_editor_core::agent_indicators::test_guard();
+    op_editor_core::agent_indicators::clear();
     let mut engine = swipe_engine();
     let pointer = &mut engine as *mut OpEngine;
     // The preview no longer pins a blanket `now + 33` wake: an idle session
@@ -252,6 +259,13 @@ fn dedicated_time_stamped_pointer_entries_swipe_without_an_intervening_frame() {
 /// `onSwipe` runs exactly once.
 #[test]
 fn out_of_order_dedicated_events_keep_global_clocks_and_swipe_uses_factual_delta() {
+    // `next_animation_deadline_ms` folds the PROCESS-GLOBAL agent
+    // indicator registry, so a concurrent test that registers a reveal
+    // makes this idle engine report a deadline it does not own. Hold the
+    // registry's own test guard for the whole body, the way the desktop
+    // indicator tests do.
+    let _indicators = op_editor_core::agent_indicators::test_guard();
+    op_editor_core::agent_indicators::clear();
     let mut engine = swipe_engine();
     let pointer = &mut engine as *mut OpEngine;
 
@@ -315,6 +329,13 @@ fn out_of_order_dedicated_events_keep_global_clocks_and_swipe_uses_factual_delta
 /// (monotonically) and never move them backward.
 #[test]
 fn cancel_and_early_returns_advance_global_clocks_monotonically() {
+    // `next_animation_deadline_ms` folds the PROCESS-GLOBAL agent
+    // indicator registry, so a concurrent test that registers a reveal
+    // makes this idle engine report a deadline it does not own. Hold the
+    // registry's own test guard for the whole body, the way the desktop
+    // indicator tests do.
+    let _indicators = op_editor_core::agent_indicators::test_guard();
+    op_editor_core::agent_indicators::clear();
     let mut engine = swipe_engine();
     let pointer = &mut engine as *mut OpEngine;
 
