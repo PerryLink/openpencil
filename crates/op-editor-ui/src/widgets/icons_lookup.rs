@@ -70,6 +70,7 @@ const FIRST_PARTY_ICONS: &[(&str, Icon)] = &[
     ("diamond", Icon::Diamond),
     ("component", Icon::Component),
     ("unlink", Icon::Unlink),
+    ("link", Icon::Link),
     ("check", Icon::Check),
     ("arrow-up-right", Icon::ArrowUpRight),
     ("circle", Icon::Circle),

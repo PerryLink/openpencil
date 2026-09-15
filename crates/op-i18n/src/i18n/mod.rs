@@ -495,6 +495,9 @@ mod figma_property_panel_key_tests;
 mod html_import_key_tests;
 
 #[cfg(test)]
+#[cfg(test)]
+mod home_studio_key_tests;
+#[cfg(test)]
 mod html_import_warning_key_tests;
 #[cfg(test)]
 mod missing_fonts_key_tests;
@@ -506,3 +509,5 @@ mod prompt_center_key_tests;
 mod tests;
 #[cfg(test)]
 mod vector_fidelity_property_keys;
+#[cfg(test)]
+mod workspace_key_tests;

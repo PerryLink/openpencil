@@ -492,8 +492,16 @@ impl WidgetHostNative {
         if self.try_scroll_home(x, y, delta_y, viewport_width, viewport_height) {
             return true;
         }
-        // The result view takeover swallows the wheel entirely.
-        if self.try_scroll_result_view() {
+        // Workspace LongPage view: the wheel pans the long page
+        // vertically only — no zoom, no horizontal drift. A pinch /
+        // zoom-modified wheel falls through to the zoom below.
+        if self.workspace_visible()
+            && self.editor_state.editor_ui.workspace.view == op_editor_core::WorkspaceView::LongPage
+            && !zoom_intent
+            && self.over_canvas(x, y, viewport_width, viewport_height)
+        {
+            self.editor_state.viewport.pan(0.0, -delta_y);
+            self.mark_dirty();
             return true;
         }
         if self.try_scroll_figma_import(x, y, delta_y, viewport_width, viewport_height) {

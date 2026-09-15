@@ -219,11 +219,6 @@ impl WidgetHostNative {
         if let Some(consumed) = self.press_home(x, y, viewport_width, viewport_height) {
             return consumed;
         }
-        // The post-generation result view is the same kind of takeover;
-        // it owns every pointer event while visible.
-        if let Some(consumed) = self.press_result_view(x, y, viewport_width, viewport_height) {
-            return consumed;
-        }
         // Tier 0 — the mobile save-name dialog is fully modal while open
         // (only the FFI hosts ever open it; desktop state stays closed).
         if let Some(consumed) =
@@ -344,6 +339,16 @@ impl WidgetHostNative {
         // affordance before app-bar/page/dock controls can claim the tap.
         if !self.preview_slideshow_active() {
             if let Some(consumed) = self.press_mobile_modal_surface_tier(&ctx) {
+                return consumed;
+            }
+        }
+        // Tier 3c — the generation workspace's chrome (header, toolbar,
+        // deck strip, dock handle) claims presses ahead of the top bar
+        // and rails, after Home and the modal tiers. Presses on the
+        // docked canvas and the pinned chat fall through to their
+        // ordinary tiers below.
+        if !presenting {
+            if let Some(consumed) = self.press_workspace(x, y, viewport_width, viewport_height) {
                 return consumed;
             }
         }

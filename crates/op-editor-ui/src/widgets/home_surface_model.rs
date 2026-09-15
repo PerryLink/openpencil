@@ -1,40 +1,36 @@
-//! Model-access chrome on the Home sheet: the model chip on the bottom
-//! row, the label it derives from the chat selection, and the geometry
-//! of the Home-anchored chat model picker that opens above the chip.
+//! Model-access chrome on the Home composer: the model button on the
+//! submit row, the label it derives from the chat selection, and the
+//! geometry of the Home-anchored chat model picker that opens above it.
 
-use super::{HomeLayout, HomePalette, HomeSurface};
+use super::{fade, HomeLayout, HomeSurface, StudioPalette};
 use crate::widgets::ai_chat_model_picker::picker_view_height;
 use crate::widgets::icons::{draw_icon, Icon};
 use crate::widgets::PaintCx;
-use crate::{Color, Point2D, Rect, TextLayout};
+use crate::{Point2D, Rect, TextLayout};
 use op_editor_core::{EditorState, ModelEntry};
 
-/// Chip height — matches the sheet's reference row band.
-pub const MODEL_CHIP_H: f32 = 28.0;
-/// Leading zone: padding + the ⚡ glyph + its gap to the label.
-pub const MODEL_CHIP_PREFIX_W: f32 = 26.0;
-/// Trailing zone: padding + the chevron-down.
-pub const MODEL_CHIP_CHEVRON_W: f32 = 22.0;
-/// Widest the chip may grow before the label clips inside the pill.
-/// Chosen so the pill never collides with the "试试这个示例" row that
-/// anchors the sheet's bottom-left on the narrowest supported sheet.
-pub const MODEL_CHIP_MAX_W: f32 = 180.0;
-
-/// Gap between the model chip's right edge and the send circle.
-pub const CHIP_SEND_GAP: f32 = 12.0;
+/// Model button height — the submit row's quieter left action.
+pub const MODEL_CHIP_H: f32 = 38.0;
+/// Leading pad + the 7 px status dot + its 7 px gap to the label.
+pub const MODEL_CHIP_PREFIX_W: f32 = 22.0;
+/// Trailing zone: 12 px gap + the 15 px chevron + right pad.
+pub const MODEL_CHIP_CHEVRON_W: f32 = 33.0;
+/// Widest the button may grow before the label clips inside it, so the
+/// primary 开始设计 button next to it keeps its clearance.
+pub const MODEL_CHIP_MAX_W: f32 = 240.0;
 
 /// Width of the Home-anchored model picker card.
 pub const HOME_MODEL_PICKER_W: f32 = 300.0;
-/// The card floats this far above the chip.
+/// The card floats this far above the button.
 pub const HOME_MODEL_PICKER_GAP: f32 = 8.0;
 /// The trailing "接入更多模型…" action row hangs below the card.
 pub const CONNECT_MORE_ROW_H: f32 = 34.0;
 pub const CONNECT_MORE_ROW_GAP: f32 = 6.0;
 
-/// The label the Home model chip shows. Reuses the exact derivation the
-/// chat panel's bottom-left model pill paints (`selected_model_entry`'s
-/// display name); when no agent can answer it becomes the localized
-/// connect hint instead.
+/// The label the Home model button shows. Reuses the exact derivation
+/// the chat panel's bottom-left model pill paints
+/// (`selected_model_entry`'s display name); when no agent can answer it
+/// becomes the localized connect hint instead.
 pub fn model_chip_label(state: &EditorState) -> String {
     let entry = state
         .has_usable_chat_agent()
@@ -46,16 +42,16 @@ pub fn model_chip_label(state: &EditorState) -> String {
     }
 }
 
-/// Natural pill width for `label` (prefix + measured label + chevron),
-/// clamped so an extreme model name cannot swallow the sheet row.
+/// Natural button width for `label` (prefix + measured label + chevron),
+/// clamped so an extreme model name cannot swallow the submit row.
 pub fn model_chip_width(label: &str) -> f32 {
-    let label_w = crate::widgets::ai_chat_panel::footer_label_width(label, 13.0);
+    let label_w = crate::widgets::ai_chat_panel::footer_label_width(label, 12.0);
     (MODEL_CHIP_PREFIX_W + label_w + MODEL_CHIP_CHEVRON_W).min(MODEL_CHIP_MAX_W)
 }
 
-/// The picker card anchored above the sheet's model chip plus the
-/// trailing connect-more row under it. `None` when the chip is not laid
-/// out (zero-width) or the viewport cannot hold the card.
+/// The picker card anchored above the submit row's model button plus
+/// the trailing connect-more row under it. `None` when the button is
+/// not laid out (zero-width) or the viewport cannot hold the card.
 pub fn home_model_picker_rects(
     layout: &HomeLayout,
     viewport_w: f32,
@@ -81,52 +77,56 @@ pub fn home_model_picker_rects(
     Some((card, connect_row))
 }
 
-/// Paint the model chip pill. The empty state (no usable agent) drops
-/// the chevron and paints the label in blue — the chip is then a call
-/// to action, not a picker.
+/// Paint the model button: a 38 px outline pill with the green status
+/// dot, the 12 px label, and a trailing chevron. The empty state (no
+/// usable agent) drops the dot's green for grey.
 pub(super) fn paint_model_chip(
     surface: &HomeSurface<'_>,
     cx: &mut PaintCx<'_>,
     rect: Rect,
-    palette: HomePalette,
+    palette: StudioPalette,
 ) {
     let usable = surface.usable_agent;
     let label = surface.chip_label.as_str();
     let hovered = surface.state.hover == Some(op_editor_core::HomeHit::ModelChip);
     let pressed = surface.state.pressed == Some(op_editor_core::HomeHit::ModelChip);
-    cx.backend
-        .fill_round_rect(rect, MODEL_CHIP_H / 2.0, palette.sheet);
-    if hovered || pressed {
-        cx.backend.fill_round_rect(
-            rect,
-            MODEL_CHIP_H / 2.0,
-            if pressed {
-                fade(palette.blue, 0.20)
-            } else {
-                fade(palette.graphite, 0.10)
-            },
-        );
-    }
-    cx.backend
-        .stroke_round_rect(rect, MODEL_CHIP_H / 2.0, palette.line, 1.0);
-    draw_icon(
-        cx.backend,
-        Icon::Zap,
-        Point2D::new(
-            rect.origin.x + 10.0,
-            rect.origin.y + (rect.size.y - 13.0) / 2.0,
-        ),
-        13.0,
-        palette.graphite,
-        1.4,
+    let fill = if hovered || pressed {
+        palette.button_hover
+    } else {
+        palette.panel
+    };
+    cx.backend.fill_round_rect(rect, 9.0, fill);
+    cx.backend.stroke_round_rect(
+        rect,
+        9.0,
+        if hovered {
+            palette.button_hover_line
+        } else {
+            palette.line
+        },
+        1.0,
     );
-    let label_color = if usable { palette.ink } else { palette.blue };
+    let dot_color = if usable {
+        palette.status_green
+    } else {
+        fade(palette.muted, 0.55)
+    };
+    cx.backend.fill_oval(
+        Rect::xywh(
+            rect.origin.x + 12.0,
+            rect.origin.y + (rect.size.y - 7.0) / 2.0,
+            7.0,
+            7.0,
+        ),
+        dot_color,
+    );
     cx.backend.save();
     cx.backend.clip_rect(rect);
+    let label_color = if usable { palette.ink } else { palette.blue };
     let layout = TextLayout::single_run(
         label,
         "system-ui",
-        13.0,
+        12.0,
         label_color.to_jian(),
         Point2D::new(0.0, 0.0),
     );
@@ -134,31 +134,21 @@ pub(super) fn paint_model_chip(
         &layout,
         Point2D::new(
             rect.origin.x + MODEL_CHIP_PREFIX_W,
-            jian_widgets::centered_text_baseline_y(rect, 13.0),
+            jian_widgets::centered_text_baseline_y(rect, 12.0),
         ),
     );
-    if usable {
-        draw_icon(
-            cx.backend,
-            Icon::ChevronDown,
-            Point2D::new(
-                rect.origin.x + rect.size.x - 16.0,
-                rect.origin.y + (rect.size.y - 12.0) / 2.0,
-            ),
-            12.0,
-            palette.graphite,
-            1.4,
-        );
-    }
+    draw_icon(
+        cx.backend,
+        Icon::ChevronDown,
+        Point2D::new(
+            rect.origin.x + rect.size.x - 21.0,
+            rect.origin.y + (rect.size.y - 15.0) / 2.0,
+        ),
+        15.0,
+        palette.muted,
+        1.6,
+    );
     cx.backend.restore();
-}
-
-/// Multiply a colour's alpha by `factor` (composes with baked alpha).
-fn fade(color: Color, factor: f32) -> Color {
-    Color {
-        a: color.a * factor,
-        ..color
-    }
 }
 
 /// Paint the picker's trailing "接入更多模型…" row — the card-styled

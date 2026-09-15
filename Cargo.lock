@@ -4463,6 +4463,7 @@ dependencies = [
  "jian-widgets",
  "op-ai",
  "op-i18n",
+ "op-orchestrator",
  "op-util",
  "serde",
  "serde_json",

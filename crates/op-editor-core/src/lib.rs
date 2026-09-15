@@ -346,9 +346,10 @@ pub use document_install::{DocumentInstallError, DocumentInstallReport, Prepared
 pub use edit_transaction::{
     CompletedLocalEdit, EditOrigin, LocalEditCapture, LocalEditError, LocalEditOutcome,
 };
-pub use editor_ui_state::home::{HOME_ENTER_FRAME_MS, HOME_ENTER_WINDOW_MS};
-pub use editor_ui_state::result_view::{
-    RESULT_ENTER_BOARD_MS, RESULT_ENTER_PANEL_MS, RESULT_ENTER_STAGGER_MS,
+pub use editor_ui_state::home::{HOME_ART_SWITCH_MS, HOME_ENTER_FRAME_MS, HOME_ENTER_WINDOW_MS};
+pub use editor_ui_state::workspace::{
+    WorkspaceHit, WorkspacePhase, WorkspaceState, WorkspaceView, WORKSPACE_DECK_STRIP_H,
+    WORKSPACE_ENTER_MS, WORKSPACE_HEADER_H, WORKSPACE_TOOLBAR_H,
 };
 pub use editor_ui_state::{
     AssetCenterTab, BooleanOp, CloneField, CloneFormState, CommitDiffPatch, CommitDiffSummary,
@@ -356,13 +357,14 @@ pub use editor_ui_state::{
     EditorUiState, EmbedHost, EntrySurface, ExportFormat, FileAction, FillType, FlexLayout,
     FontPickerPurpose, GitBranchPickerMode, GitCandidateFile, GitCommitSummary, GitDiffTarget,
     GitDiffView, GitFileEntry, GitOverflowView, GitPanelAction, GitPanelState, HomeDevice,
-    HomeFamily, HomeHit, HomeState, ImageAdjustmentField, ImageFillMode, LayerContextMenuState,
-    LeftPanelTab, Locale, MergeConflictRow, MergeResolveFile, MergeResolveState,
-    MissingFontSurface, PaddingEditMode, PageRenameState, PencilCursorStyle, PreviewDeviceKind,
-    PreviewState, PromptCenterFocus, PromptCenterState, PromptFilter, PropertyTab, RecentFile,
-    ResultHit, ResultViewState, SceneFilter, SceneTemplateCenterState, SceneTemplateFocus,
-    SizeToggleState, SlidesDrag, SlidesPanelState, SlidesPanelTarget, StyleImportState, ThemeMode,
-    UpdateStatus, VariableRowFocus, WindowControlRequest,
+    HomeFamily, HomeHit, HomeState, ImageAdjustmentField, ImageFillMode, InfoKind,
+    LayerContextMenuState, LeftPanelTab, Locale, MergeConflictRow, MergeResolveFile,
+    MergeResolveState, MissingFontSurface, PaddingEditMode, PageRenameState, PencilCursorStyle,
+    PreviewDeviceKind, PromptCenterFocus, PromptCenterState, PromptFilter, PropertyTab, RecentFile,
+    SceneFilter, SceneTemplateCenterState, SceneTemplateFocus, SizeToggleState, SlideRatio,
+    SlidesDrag, SlidesPanelState, SlidesPanelTarget, StyleImportState, TaskDraft, ThemeMode,
+    UpdateStatus, VariableRowFocus, WindowControlRequest, CHAT_TAB_MIN_WIDTH,
+    LAYER_PANEL_MAX_WIDTH, LAYER_PANEL_MIN_WIDTH,
 };
 pub use export_dialog_state::ExportDialogButton;
 pub use export_quick_menu_state::ExportQuickRow;

@@ -74,6 +74,34 @@ pub fn launch_if_pending(
     current_chat: &mut Option<ChatSession>,
     current_design: &mut Option<DesignSession>,
 ) -> bool {
+    let launched = launch_if_pending_inner(host, current_chat, current_design);
+    if launched {
+        stamp_workspace_run_epoch(host);
+    }
+    launched
+}
+
+/// The workspace this document carries captures the live agent epoch
+/// at launch: its finish / stop / error edges are fenced against any
+/// other run's, and a NEW run (follow-up or retry) puts it back into
+/// Generating under the new epoch.
+fn stamp_workspace_run_epoch(host: &mut WidgetHostNative) {
+    let Some(epoch) = op_editor_core::agent_indicators::active_epoch() else {
+        return;
+    };
+    let workspace = &mut host.editor_state_mut().editor_ui.workspace;
+    if !workspace.active || workspace.run_epoch == epoch {
+        return;
+    }
+    workspace.resume_generating(epoch);
+    host.mark_editor_state_dirty();
+}
+
+fn launch_if_pending_inner(
+    host: &mut WidgetHostNative,
+    current_chat: &mut Option<ChatSession>,
+    current_design: &mut Option<DesignSession>,
+) -> bool {
     let Some(user_text) = host.editor_state_mut().chat.pending_send.take() else {
         return false;
     };
@@ -104,7 +132,8 @@ pub fn launch_if_pending(
             return true;
         }
     } else if !op_host_services::chat_intent::is_non_request_text(&effective_user_text)
-        && matches!(classify_intent(&effective_user_text), Intent::Design)
+        && (launch_route.implies_design_intent()
+            || matches!(classify_intent(&effective_user_text), Intent::Design))
     {
         // Record what this turn establishes the document to be BEFORE either
         // design route can clear the starter frame — once the page is empty
@@ -606,8 +635,10 @@ pub fn drain_new_chat_request(
 }
 
 /// Drain a Stop request raised by the widget layer. The transcript
-/// has already had its streaming flags cleared; this only drops the
-/// in-flight workers so stale deltas cannot append after cancellation.
+/// has already had its streaming flags cleared; this drops the
+/// in-flight workers so stale deltas cannot append after cancellation,
+/// and marks a generating workspace Stopped so the turn's late finish
+/// edges can never repaint it Done.
 pub fn drain_stop_request(
     host: &mut WidgetHostNative,
     current_chat: &mut Option<ChatSession>,
@@ -617,6 +648,13 @@ pub fn drain_stop_request(
     if !std::mem::take(&mut host.editor_state_mut().chat.pending_stop_chat) {
         return false;
     }
+    // Capture the epoch BEFORE the indicator ends — the fence below
+    // discriminates a stopped run's late edges from a newer run's.
+    let stopped_epoch = op_editor_core::agent_indicators::active_epoch().unwrap_or_else(|| {
+        // Stop raced ahead of the launch drain: the run never got
+        // an epoch, so accept the unstamped workspace.
+        host.editor_state().editor_ui.workspace.run_epoch
+    });
     // Finalize-lifecycle invariant (0718-1-k3-1 postmortem) — see
     // `drain_new_chat_request`'s matching comment above.
     super::finalize_design_session_if_needed(host, current_chat, "teardown-backstop");
@@ -628,6 +666,17 @@ pub fn drain_stop_request(
     *current_design = None;
     if let Some(epoch) = op_editor_core::agent_indicators::active_epoch() {
         op_editor_core::agent_indicators::end_if_epoch(epoch);
+    }
+    // A generating workspace is now Stopped: the user's Stop is the
+    // ONLY thing that cancels a generation, and the idle edge that
+    // follows must not flip it to Done or Failed.
+    if host
+        .editor_state_mut()
+        .editor_ui
+        .workspace
+        .mark_stopped(stopped_epoch)
+    {
+        host.mark_editor_state_dirty();
     }
     host.mark_editor_state_dirty();
     true

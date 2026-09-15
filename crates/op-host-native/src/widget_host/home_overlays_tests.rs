@@ -4,7 +4,7 @@
 
 use super::WidgetHostNative;
 use op_editor_core::{
-    BuiltinAgentConfig, BuiltinAgentKind, BuiltinAgentPresetKey, HomeFamily, HomeHit, LaunchRoute,
+    BuiltinAgentConfig, BuiltinAgentKind, BuiltinAgentPresetKey, HomeHit, LaunchRoute,
 };
 use op_editor_ui::widgets::ai_chat_model_picker::{MODEL_GROUP_H, MODEL_ROW_H, MODEL_SEARCH_H};
 use op_editor_ui::widgets::HomeSurface;
@@ -76,10 +76,6 @@ fn pressing_the_model_chip_without_a_usable_agent_opens_the_connect_card() {
 #[test]
 fn pressing_send_without_a_usable_agent_opens_the_connect_card_not_a_turn() {
     let mut host = host_with_home();
-    host.editor_state_mut()
-        .editor_ui
-        .home
-        .bind(HomeFamily::AppUi);
     host.editor_state_mut().editor_ui.home.set_draft("取餐预约");
     let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
     let send = center(home.layout(W, H).send);
@@ -123,10 +119,6 @@ fn connect_card_rows_open_their_modals_and_escape_closes_the_card() {
 #[test]
 fn home_send_marks_the_turn_for_the_orchestrator_route() {
     let mut host = host_with_usable_agent();
-    host.editor_state_mut()
-        .editor_ui
-        .home
-        .bind(HomeFamily::AppUi);
     for character in "取餐预约".chars() {
         assert!(host.apply_text(character));
     }
@@ -200,7 +192,7 @@ fn home_hit_test_still_routes_the_sheet_under_the_new_chip() {
     let host = host_with_usable_agent();
     let home = HomeSurface::for_editor(host.editor_state()).expect("home visible");
     let layout = home.layout(W, H);
-    let sheet = center(layout.sheet_text);
+    let sheet = center(layout.input_box);
     assert_eq!(
         home.hit_test(W, H, sheet),
         Some(HomeHit::Sheet),

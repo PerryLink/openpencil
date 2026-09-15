@@ -272,6 +272,10 @@ fn import_menu_hover_clears_when_cursor_leaves_into_the_layer_panel() {
 #[test]
 fn panel_resize_drag_continues_inside_left_layer_panel() {
     let mut app = DesktopApp::new(None);
+    // Start wide of the rail's 240 px floor: the drag must be observable
+    // as a narrowing, and a 72 px pull from the 240 px default would
+    // just sit on the clamp.
+    app.host.editor_state_mut().editor_ui.layer_panel_width = 360.0;
     let start_width = app.host.editor_state().editor_ui.layer_panel_width;
     let y = op_editor_ui::widgets::TOP_BAR_HEIGHT + 140.0;
     assert!(app
@@ -364,10 +368,16 @@ fn selected_count_chip_clear_click_clears_canvas_selection() {
     ];
     app.host.editor_state_mut().chat.panel_position = Some((100.0, 100.0));
     // The app launches minimized; the selection chip lives in the
-    // expanded panel.
+    // expanded panel, and the expanded panel now lives in the rail's
+    // Agent tab — elsewhere the chat is composer-only and has no chip.
     app.host.editor_state_mut().chat.expand();
-    let chat = &app.host.editor_state().chat;
-    let chat_rect = op_editor_ui::Rect::xywh(100.0, 100.0, chat.panel_width, chat.panel_height);
+    app.host.editor_state_mut().editor_ui.enter_chat_tab();
+    // The panel's rect is the rail's body now, not a floating box the
+    // test can place itself.
+    let state = app.host.editor_state();
+    let panel_rect = op_editor_ui::widgets::host_canvas_geometry::layer_panel_rect(state, 800.0);
+    let chat_rect =
+        op_editor_ui::widgets::slides_panel_flow::layers_content_rect(state, panel_rect);
     let panel = op_editor_ui::widgets::AIChatPlaceholder::from_editor(app.host.editor_state());
     let input = panel.input_rect(chat_rect);
     let clear_point = (0..160)

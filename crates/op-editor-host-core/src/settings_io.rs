@@ -223,8 +223,31 @@ fn settings_path() -> Option<PathBuf> {
     if let Some(root) = op_config_store::configured_user_root() {
         return Some(root.join(FILE_NAME));
     }
+    if let Some(sandbox) = test_process_settings_dir() {
+        return Some(sandbox.join(FILE_NAME));
+    }
     let base = dirs::config_dir()?;
     Some(base.join(APP_DIR).join(FILE_NAME))
+}
+
+/// A cargo test binary (`target/…/deps/<crate>-<hash>`) never touches the
+/// user's real settings file. A desktop test once called the public
+/// `save` on a fixture state and silently replaced the founder's
+/// settings.json — API keys included — on every `cargo test`; every test
+/// process now writes under its own temp directory instead. Explicit
+/// config roots (`op_config_store::configured_user_root`) still win, so
+/// tests that stage their own root keep working.
+fn test_process_settings_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let under_deps = exe
+        .components()
+        .any(|component| component.as_os_str() == "deps");
+    let under_target = exe
+        .components()
+        .any(|component| component.as_os_str() == "target");
+    (under_deps && under_target).then(|| {
+        std::env::temp_dir().join(format!("openpencil-test-settings-{}", std::process::id()))
+    })
 }
 
 /// Snapshot the live `EditorState` preferences into a serializable

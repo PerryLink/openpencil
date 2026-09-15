@@ -165,17 +165,24 @@ pub fn base_animation_deadline_ms(
     {
         next = earliest(next, deadline);
     }
-    // The result view's entrance motion (staggered board rise + panel
-    // slide) settles without any input event behind it, so its final
-    // instants have to reach the scheduler or the boards would freeze
-    // mid-rise until the next mouse move.
-    if let Some(deadline) = state.editor_ui.result_view.entrance_deadline_ms(now_ms) {
+    // Same reason for the workspace entrance motion (fade + rise): it
+    // settles without any input event behind it, so the scheduler must
+    // keep frames coming until the window has played out.
+    if let Some(deadline) = state.editor_ui.workspace.entrance_deadline_ms(now_ms) {
         next = earliest(next, deadline);
     }
     // Same reason for the Home entrance choreography: the staggered rise
     // and the underline draw run on their own clock, so the scheduler
     // must keep frames coming until the whole window has played out.
     if let Some(deadline) = state.editor_ui.home.entrance_deadline_ms(now_ms) {
+        next = earliest(next, deadline);
+    }
+    // The explore-card hover lift (300 ms in and out) and the example
+    // art crossfade run on the same clock.
+    if let Some(deadline) = state.editor_ui.home.hover_lift_deadline_ms(now_ms) {
+        next = earliest(next, deadline);
+    }
+    if let Some(deadline) = state.editor_ui.home.art_deadline_ms(now_ms) {
         next = earliest(next, deadline);
     }
     next

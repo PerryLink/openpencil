@@ -51,10 +51,10 @@ mod layer_panel_walkers;
 pub mod path_anchor_context_menu;
 pub mod prompt_center_panel;
 pub use home_surface::{home_enter, HomeEnterBlock, HomeLayout, HomeSurface, HOME_TOPBAR_H};
-pub mod result_view_surface;
-pub use result_view_surface::{
-    board_enter, panel_enter, ResultBoard, ResultLayout, ResultViewSurface, BOARD_RADIUS,
-    RESULT_BUTTON_HITS, RESULT_MARGIN_X,
+pub mod workspace_surface;
+pub use workspace_surface::{
+    family_has_strip, family_views, layout_for as workspace_layout_for, workspace_enter,
+    WorkspaceLayout, WorkspaceSurface,
 };
 pub(crate) mod prompt_center_previews;
 pub mod scene_template_panel;

@@ -17,20 +17,27 @@ impl WidgetHostNative {
             self.mark_dirty();
             return true;
         }
-        // The result view is a full-surface takeover: Escape drops back
-        // to the canvas beneath it (same as its Professional link).
-        if self.editor_state.editor_ui.result_view.visible {
-            self.editor_state.editor_ui.result_view.hide();
-            self.mark_dirty();
-            return true;
-        }
+        // The result view is retired; the workspace is not a takeover,
+        // so Escape in it walks the ordinary ladder (chat focus first,
+        // then selection).
         // Home is the same kind of takeover, and its own overlays peel
-        // off first: the connect card, then the Home-anchored model
-        // picker. (The settings / sign-in modals Home opens are closed
-        // by their own rungs further down this ladder.)
+        // off first: the connect card, the 更多 popover, the inline
+        // replace strip, then the Home-anchored model picker. (The
+        // settings / sign-in modals Home opens are closed by their own
+        // rungs further down this ladder.)
         if self.editor_state.editor_ui.home.visible {
             if self.editor_state.editor_ui.home.connect_card_open {
                 self.editor_state.editor_ui.home.connect_card_open = false;
+                self.mark_dirty();
+                return true;
+            }
+            if self.editor_state.editor_ui.home.more_open {
+                self.editor_state.editor_ui.home.more_open = false;
+                self.mark_dirty();
+                return true;
+            }
+            if self.editor_state.editor_ui.home.replace_pending {
+                self.editor_state.editor_ui.home.keep_draft();
                 self.mark_dirty();
                 return true;
             }

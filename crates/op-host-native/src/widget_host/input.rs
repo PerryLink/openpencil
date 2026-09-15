@@ -597,16 +597,19 @@ impl WidgetHostNative {
         {
             return consumed;
         }
-        if let Some(consumed) =
-            self.cursor_move_result_view(x, y, self.last_viewport_w, self.last_viewport_h)
-        {
-            return consumed;
-        }
         // Session-switch owner rotation before the cursor_probe resolve below
         // stores the canonical build (mirrors the paint entry).
         self.rotate_chat_owner_if_session_changed();
         // Tier 1 — modals / top-most overlays own the cursor outright.
         if let Some(consumed) = self.cursor_move_modal_tiers(x, y) {
+            return consumed;
+        }
+        // The workspace chrome's hover — AFTER the modal tiers (its
+        // chrome sits under the modals it opens) and BEFORE the chat /
+        // canvas hover tiers. Non-consuming over the canvas and dock.
+        if let Some(consumed) =
+            self.cursor_move_workspace(x, y, self.last_viewport_w, self.last_viewport_h)
+        {
             return consumed;
         }
         // Top-most floating panel drags own cursor movement.

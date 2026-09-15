@@ -1,16 +1,15 @@
-//! The Home sheet's 接入卡 — the modal card that offers the three
+//! The Home composer's 接入卡 — the modal card that offers the three
 //! first-run ways to connect a model (free tier, own API key, local
 //! CLI) when no chat agent can answer yet.
 
-use super::paint::serif_family;
-use super::{HomeLayout, HomePalette, HomeSurface};
+use super::{fade, HomeLayout, HomeSurface, StudioPalette};
 use crate::widgets::PaintCx;
-use crate::{Color, Point2D, Rect, TextLayout};
+use crate::{Point2D, Rect, TextLayout};
 use op_editor_core::HomeHit;
 
-/// Card size — a sheet-paper card, 460 wide with room for the title and
-/// three 56 px rows.
-pub const CONNECT_CARD_W: f32 = 460.0;
+/// Card size — a studio panel card, 440 wide with room for the title
+/// and three 56 px rows.
+pub const CONNECT_CARD_W: f32 = 440.0;
 pub const CONNECT_CARD_H: f32 = 280.0;
 /// Row height / gap inside the card.
 pub const CONNECT_ROW_H: f32 = 56.0;
@@ -20,11 +19,11 @@ const CONNECT_ROW_INSET_X: f32 = 16.0;
 /// Title block height above the first row.
 const CONNECT_TITLE_H: f32 = 64.0;
 
-/// The card rect centred over `sheet` plus its three action rows.
-pub(super) fn connect_card_rects(sheet: Rect) -> (Rect, [Rect; 3]) {
+/// The card rect centred over `composer` plus its three action rows.
+pub(super) fn connect_card_rects(composer: Rect) -> (Rect, [Rect; 3]) {
     let card = Rect::xywh(
-        sheet.origin.x + (sheet.size.x - CONNECT_CARD_W) / 2.0,
-        sheet.origin.y + (sheet.size.y - CONNECT_CARD_H) / 2.0,
+        composer.origin.x + (composer.size.x - CONNECT_CARD_W) / 2.0,
+        composer.origin.y + (composer.size.y - CONNECT_CARD_H) / 2.0,
         CONNECT_CARD_W,
         CONNECT_CARD_H,
     );
@@ -56,22 +55,14 @@ pub(super) fn connect_card_hit(layout: &HomeLayout, point: Point2D) -> Option<Ho
     })
 }
 
-/// Multiply a colour's alpha by `factor` (composes with baked alpha).
-fn fade(color: Color, factor: f32) -> Color {
-    Color {
-        a: color.a * factor,
-        ..color
-    }
-}
-
-/// Paint the card: sheet fill, hairline border, pool shadow, serif
+/// Paint the card: panel fill, hairline border, pool shadow, sans
 /// title, then the three rows — the free tier in primary blue, the
 /// other two as quiet outline rows.
 pub(super) fn paint_connect_card(
     surface: &HomeSurface<'_>,
     cx: &mut PaintCx<'_>,
     layout: &HomeLayout,
-    palette: HomePalette,
+    palette: StudioPalette,
 ) {
     let (card, rows) = (&layout.connect_card, &layout.connect_rows);
     let title = op_i18n::translate(surface.ui.locale, "home.connect.title");
@@ -106,16 +97,16 @@ pub(super) fn paint_connect_card(
         16.0,
         fade(palette.ink, 0.18),
     );
-    cx.backend.fill_round_rect(*card, 14.0, palette.sheet);
+    cx.backend.fill_round_rect(*card, 14.0, palette.panel);
     cx.backend.stroke_round_rect(*card, 14.0, palette.line, 1.0);
-    let family = serif_family(surface.ui);
     let title_layout = TextLayout::single_run(
         title,
-        family,
-        20.0,
+        "system-ui",
+        19.0,
         palette.ink.to_jian(),
         Point2D::new(0.0, 0.0),
-    );
+    )
+    .with_font_weight(650);
     cx.backend.draw_text(
         &title_layout,
         Point2D::new(card.origin.x + 20.0, card.origin.y + 36.0),
@@ -127,21 +118,21 @@ pub(super) fn paint_connect_card(
         let (fill, title_color, note_color, border) = if primary {
             (
                 palette.blue,
-                palette.sheet,
-                fade(palette.sheet, 0.82),
+                palette.panel,
+                fade(palette.panel, 0.82),
                 palette.blue,
             )
         } else {
             (
                 if pressed {
-                    fade(palette.graphite, 0.10)
+                    fade(palette.blue, 0.10)
                 } else if hovered {
-                    palette.paper_2
+                    palette.button_hover
                 } else {
-                    palette.sheet
+                    palette.panel
                 },
                 palette.ink,
-                palette.ash,
+                palette.muted,
                 palette.line,
             )
         };

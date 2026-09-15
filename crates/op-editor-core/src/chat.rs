@@ -132,6 +132,22 @@ impl LaunchRoute {
     pub fn bypasses_design_agent_loop(self) -> bool {
         matches!(self, Self::Orchestrator)
     }
+
+    /// True when the route itself establishes that the turn is a design
+    /// request, so the keyword intent classifier must not get a vote.
+    ///
+    /// Studio Home pins this route only after the user has picked a task
+    /// card and pressed 开始设计 — the deliverable is already decided, and
+    /// re-deriving it from the prompt's wording is strictly worse
+    /// information. It is also wrong in practice: the keyword list grew up
+    /// around app/web briefs, so the 演示文稿 / 图文卡片 / 截图教程 /
+    /// 信息图 / 活动海报 wrappers matched nothing and five of the seven
+    /// task families silently answered as plain chat (measured
+    /// 2026-09-13: a 5-page PPT brief produced one empty starter frame and
+    /// a collapsed thinking block).
+    pub fn implies_design_intent(self) -> bool {
+        matches!(self, Self::Orchestrator)
+    }
 }
 
 /// Floating AI chat panel state — mirrors shell-core's `ChatState`

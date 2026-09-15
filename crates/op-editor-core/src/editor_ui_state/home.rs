@@ -1,8 +1,11 @@
-//! First-launch drafting-table state and prompt contracts.
+//! Studio Home state: the seven creation tasks, their per-task drafts,
+//! and the prompt contracts that steer the orchestrator's design-type
+//! detection.
 //!
 //! Home is an entry surface over the same `EditorState` as the canvas. It
-//! owns only transient chrome state and the small prompt wrapper that turns a
-//! family selection into the existing chat-design request shape.
+//! owns only transient chrome state: which task is active, one draft per
+//! task (text + options), and the small prompt wrapper that turns a task
+//! selection into the existing chat-design request shape.
 
 use jian_core::text_input::TextInputState;
 
@@ -31,91 +34,159 @@ impl EntrySurface {
     }
 }
 
-/// Home's four deliberately small scenario families.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Home's seven creation tasks. The discriminant order is the tab order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum HomeFamily {
+    #[default]
     AppUi,
+    Web,
+    Presentation,
     KnowledgeCards,
     ScreenshotTutorial,
+    Infographic,
     EventPoster,
 }
 
 impl HomeFamily {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 7] = [
         Self::AppUi,
+        Self::Web,
+        Self::Presentation,
         Self::KnowledgeCards,
         Self::ScreenshotTutorial,
+        Self::Infographic,
         Self::EventPoster,
     ];
 
+    /// Stable persistence/test id.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::AppUi => "app",
+            Self::Web => "web",
+            Self::Presentation => "presentation",
+            Self::KnowledgeCards => "knowledge",
+            Self::ScreenshotTutorial => "tutorial",
+            Self::Infographic => "infographic",
+            Self::EventPoster => "poster",
+        }
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|f| f.id() == value)
+    }
+
+    /// Short zh label (the result-view breadcrumb still paints it; the
+    /// Home surface itself resolves copy through i18n `home.task.<id>.*`).
     pub const fn label(self) -> &'static str {
         match self {
             Self::AppUi => "App 界面",
-            Self::KnowledgeCards => "知识卡片",
+            Self::Web => "网页设计",
+            Self::Presentation => "演示文稿",
+            Self::KnowledgeCards => "图文卡片",
             Self::ScreenshotTutorial => "截图教程",
+            Self::Infographic => "信息图",
             Self::EventPoster => "活动海报",
         }
     }
 
-    pub const fn placeholder(self) -> &'static str {
-        match self {
-            Self::AppUi => "说说你想做的 App 界面，例如：取餐预约，3 个手机页面",
-            Self::KnowledgeCards => "把一段内容做成一套可编辑的知识卡片",
-            Self::ScreenshotTutorial => "把这些截图串成一篇步骤图",
-            Self::EventPoster => "帮我做一组活动海报，包含时间、地点和报名方式",
+    /// The user-visible name of the active infographic sub-kind.
+    pub const fn info_kind_label(kind: InfoKind) -> &'static str {
+        match kind {
+            InfoKind::Data => "数据",
+            InfoKind::Flow => "流程",
+            InfoKind::Comparison => "对比",
         }
     }
 
-    pub const fn expected_outputs(self) -> &'static [&'static str] {
-        match self {
-            Self::AppUi => &["可编辑组件", "变量", "图层"],
-            Self::KnowledgeCards => &["卡片套组", "可编辑文字", "发布版式"],
-            Self::ScreenshotTutorial => &["步骤图", "截图标注", "可编辑图层"],
-            Self::EventPoster => &["主视觉海报", "活动信息版式", "可编辑图层"],
-        }
-    }
-
-    /// Wrap the user's brief with the family and device contract understood
-    /// by the normal chat-design launch path.
-    pub fn generation_prompt(self, draft: &str, device: HomeDevice) -> Option<String> {
-        let draft = draft.trim();
-        if draft.is_empty() {
+    /// Wrap the task's draft with the contract the orchestrator's
+    /// `detect_design_type` and the desktop launch path understand.
+    pub fn generation_prompt(self, draft: &TaskDraft) -> Option<String> {
+        let text = draft.text.trim();
+        if text.is_empty() {
             return None;
         }
         let prompt = match self {
+            Self::AppUi if draft.device == HomeDevice::Mobile => format!(
+                "请设计一套可编辑的高保真手机 App 界面（mobile app，375×812）。\
+交付一组完整界面：统一的组件、变量与图层结构，屏幕之间用 onTap 串起导航。\n\n用户需求：{text}"
+            ),
             Self::AppUi => format!(
-                "请设计一套可编辑的高保真 {} 界面（目标设备：{}）。交付一组完整界面：统一的组件、变量与图层结构，屏幕之间用 onTap 串起导航。\n\n用户需求：{}",
-                if device == HomeDevice::Mobile { "mobile app" } else { "web app" },
-                device.label(),
-                draft
+                "请设计一套可编辑的高保真桌面端应用界面（desktop app，1440 宽的 dashboard \
+工作台）。交付一组完整界面：统一的组件、变量与图层结构。\n\n用户需求：{text}"
+            ),
+            Self::Web => format!(
+                "请设计一个完整的纵向滚动网站页面（landing page，1440 宽）。\
+从首屏主视觉到页脚分区块组织内容，保持统一的视觉系统与可编辑图层。\n\n用户需求：{text}"
+            ),
+            Self::Presentation => format!(
+                "请做一份 {} 页的 PPT 演示文稿（slides，{}）。封面、正文与结束页风格统一，\
+文字与图形保持可编辑图层。\n\n用户需求：{text}",
+                slide_count(text),
+                match draft.ratio {
+                    SlideRatio::Wide169 => "16:9",
+                    SlideRatio::Classic43 => "4:3",
+                }
             ),
             Self::KnowledgeCards => format!(
-                "请把以下内容制作成一套可编辑的知识卡片（carousel），保留清晰的信息层级、统一的视觉系统和可复用图层。\n\n用户需求：{}",
-                draft
+                "请做一套图文卡片（card，竖版 3:4，多页轮播）。保持统一排版与视觉系统，\
+文字与图形保持可编辑图层。\n\n用户需求：{text}"
             ),
             Self::ScreenshotTutorial => format!(
-                "请把以下截图或说明制作成一套可编辑的截图教程（screenshot tutorial），按步骤组织画面并为关键操作加清晰标注。\n\n用户需求：{}",
-                draft
+                "请做一篇截图教程图文（card，竖版，截图配上步骤说明）。按步骤组织画面，\
+并为关键操作加清晰标注。\n\n用户需求：{text}"
+            ),
+            Self::Infographic => format!(
+                "请做一张{}信息图长图（card，竖版图文长图）。信息层级清晰，\
+数字与图形保持可编辑图层。\n\n用户需求：{text}",
+                Self::info_kind_label(draft.info_kind)
             ),
             Self::EventPoster => format!(
-                "请制作一组可编辑的活动海报（event-poster-deck），以活动主视觉、时间地点和报名信息为核心，保持整组海报一致。\n\n用户需求：{}",
-                draft
+                "请做一套活动海报（card，主海报竖版 + 社交方图）。整组海报视觉一致，\
+主视觉、时间地点与报名信息完整，图层保持可编辑。\n\n用户需求：{text}"
             ),
         };
         Some(prompt)
     }
 }
 
-/// Total window the entrance choreography animates over (the underline's
-/// 520 ms + 900 ms draw is the longest block). Shared by the widget's
-/// paint pass and the host's frame scheduler so both agree on when the
-/// entrance has fully settled.
-pub const HOME_ENTER_WINDOW_MS: u64 = 1600;
+/// Page count a presentation wrapper names: the first small number in the
+/// draft (e.g. "5 页"), else the 5-page default.
+fn slide_count(text: &str) -> u32 {
+    let mut digits: Option<String> = None;
+    // The trailing space flushes a number that ends the draft.
+    for character in text.chars().chain([' ']) {
+        if character.is_ascii_digit() {
+            digits.get_or_insert_with(String::new).push(character);
+            continue;
+        }
+        if let Some(run) = digits.take() {
+            if let Ok(count) = run.parse::<u32>() {
+                if (1..=30).contains(&count) {
+                    return count;
+                }
+            }
+        }
+    }
+    5
+}
+
+/// Total window the entrance choreography animates over (the recent
+/// row's 240 ms stagger + 600 ms rise is the longest block; prototype
+/// `enter .6s cubic-bezier(.22,1,.36,1)` with a 0/60/120/180/240 ms
+/// stagger). Shared by the widget's paint pass and the host's frame
+/// scheduler so both agree on when the entrance has fully settled.
+pub const HOME_ENTER_WINDOW_MS: u64 = 840;
 /// While the entrance is running the scheduler keeps frames coming at
 /// this cadence so the staggered rise never freezes mid-motion.
 pub const HOME_ENTER_FRAME_MS: u64 = 16;
+/// The example art crossfades over this window after a task switch
+/// (prototype `art-in .3s`: opacity .2→1, rise 8 px, scale .985→1).
+pub const HOME_ART_SWITCH_MS: u64 = 300;
+/// The explore card's hover lift plays out over this window in BOTH
+/// directions (prototype `.example-card{transition:transform .3s}`).
+pub const HOME_HOVER_LIFT_MS: u64 = 300;
 
-/// The two device contexts shown after App 界面 is bound.
+/// The App task's screen dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum HomeDevice {
     #[default]
@@ -123,34 +194,82 @@ pub enum HomeDevice {
     Desktop,
 }
 
-impl HomeDevice {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Mobile => "手机",
-            Self::Desktop => "桌面",
-        }
+/// The presentation task's aspect choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SlideRatio {
+    #[default]
+    Wide169,
+    Classic43,
+}
+
+/// The infographic task's sub-kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum InfoKind {
+    #[default]
+    Data,
+    Flow,
+    Comparison,
+}
+
+/// One task's kept draft: the text plus the options its segmented
+/// control owns. Attachments deliberately live in the chat composer's
+/// `pending_attachments` — that list is the single source of truth.
+#[derive(Debug, Clone, Default)]
+pub struct TaskDraft {
+    pub text: String,
+    pub device: HomeDevice,
+    pub ratio: SlideRatio,
+    pub info_kind: InfoKind,
+}
+
+impl TaskDraft {
+    fn cleared() -> Self {
+        Self::default()
     }
 }
 
 /// Interactive target ids used by Home hover and pressed feedback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HomeHit {
+    /// The composer's input box (caret press).
     Sheet,
-    Send,
-    Professional,
-    Chip(HomeFamily),
-    Card(HomeFamily),
-    Device(HomeDevice),
+    /// One of the seven task tabs.
+    Tab(HomeFamily),
+    /// The 更多 ▾ button that opens the narrow-viewport task popover.
+    More,
+    /// One row of the 更多 popover.
+    MoreItem(HomeFamily),
+    /// The task's segmented control; `0` is the leftmost option.
+    Segment(u8),
+    /// The 添加截图 tool.
     Attachment,
-    TryExample,
+    /// The 参考链接 tool (disabled M1).
     ReferenceLink,
+    /// The Figma tool (disabled M1).
     Figma,
-    Recent,
-    NewCanvas,
-    OpenFile,
-    Footer,
-    /// The model chip on the sheet's bottom row.
+    /// The model button on the submit row.
     ModelChip,
+    /// The 开始设计 primary button.
+    Send,
+    /// The preview footer's 使用这个示例 link.
+    UseExample,
+    /// The preview footer's 回到工作区 link — shown instead of
+    /// UseExample while a workspace is active.
+    BackToWorkspace,
+    /// The replace-confirm strip's 保留 button.
+    ReplaceKeep,
+    /// The replace-confirm strip's 使用示例 button.
+    ReplaceConfirm,
+    /// One of the three 看看还能做什么 cards.
+    ExploreCard(HomeFamily),
+    /// A recent-project chip.
+    Recent(usize),
+    /// The ＋ 新建空白画布 button.
+    NewCanvas,
+    /// The top bar's 打开文件 button.
+    OpenFile,
+    /// The top bar's 进入专业画布 button.
+    Professional,
     /// The 接入卡's free-tier row.
     ConnectFreeTier,
     /// The 接入卡's own-API-key row.
@@ -161,18 +280,19 @@ pub enum HomeHit {
     ConnectClose,
 }
 
-/// Transient state for the drafting-table Home surface.
+/// Transient state for the Studio Home surface.
 #[derive(Debug, Clone)]
 pub struct HomeState {
     pub visible: bool,
-    pub bound: Option<HomeFamily>,
-    pub device: HomeDevice,
+    /// The always-selected task the composer edits.
+    pub task: HomeFamily,
+    /// One draft per task; `draft`/`input` mirror the active one.
+    pub drafts: [TaskDraft; 7],
     pub draft: String,
     pub hover: Option<HomeHit>,
     pub pressed: Option<HomeHit>,
     /// Scroll offset for a home stack that is taller than the viewport.
-    /// The footer and top bar stay pinned while the drafting-table content
-    /// moves inside the area between them.
+    /// The top bar stays pinned while the page content scrolls under it.
     pub scroll_y: f32,
     /// Wall-clock instant the entrance choreography phases against, in ms.
     /// `0` = not started: the surface paints settled (no motion) until a
@@ -183,16 +303,30 @@ pub struct HomeState {
     /// IME, clipboard, and caret edits lossless.
     pub input: TextInputState,
     /// The "先接入一个模型" connect card, opened by Send / the model chip
-    /// when no chat agent can answer yet. Modal over the sheet.
+    /// when no chat agent can answer yet. Modal over the composer.
     pub connect_card_open: bool,
+    /// The narrow-viewport 更多 task popover.
+    pub more_open: bool,
+    /// The inline 替换现有需求？ confirm strip inside the composer.
+    pub replace_pending: bool,
+    /// Wall-clock instant the preview art last changed task, for the
+    /// 300 ms crossfade. `0` = no switch to animate.
+    pub art_switched_at_ms: u64,
+    /// Wall-clock instant the hovered explore card last changed, for the
+    /// 300 ms hover lift (in AND out). `0` = never stamped; the lift
+    /// paints settled so an unstamped host degrades to an instant hover.
+    pub card_hover_since_ms: u64,
+    /// The explore card the cursor most recently LEFT, so only that card
+    /// plays the descent half of the lift; every other rest card stays put.
+    pub card_hover_leaving: Option<HomeFamily>,
 }
 
 impl Default for HomeState {
     fn default() -> Self {
         Self {
             visible: false,
-            bound: None,
-            device: HomeDevice::Mobile,
+            task: HomeFamily::AppUi,
+            drafts: std::array::from_fn(|_| TaskDraft::cleared()),
             draft: String::new(),
             hover: None,
             pressed: None,
@@ -200,6 +334,11 @@ impl Default for HomeState {
             shown_at_ms: 0,
             input: TextInputState::default(),
             connect_card_open: false,
+            more_open: false,
+            replace_pending: false,
+            art_switched_at_ms: 0,
+            card_hover_since_ms: 0,
+            card_hover_leaving: None,
         }
     }
 }
@@ -213,6 +352,10 @@ impl HomeState {
         self.pressed = None;
         self.shown_at_ms = 0;
         self.connect_card_open = false;
+        self.more_open = false;
+        self.replace_pending = false;
+        self.card_hover_since_ms = 0;
+        self.card_hover_leaving = None;
     }
 
     /// The next frame instant the entrance choreography still needs, or
@@ -225,29 +368,125 @@ impl HomeState {
             .then_some(now_ms.saturating_add(HOME_ENTER_FRAME_MS))
     }
 
-    pub fn bind(&mut self, family: HomeFamily) -> bool {
-        let changed = self.bound != Some(family);
-        self.bound = Some(family);
-        changed
+    /// Stamp a hover change between explore cards: `from` is the card the
+    /// cursor left (it plays the descent), `now_ms` starts the 300 ms lift.
+    pub fn stamp_card_hover(&mut self, from: Option<HomeFamily>, now_ms: u64) {
+        self.card_hover_since_ms = now_ms.max(1);
+        self.card_hover_leaving = from;
     }
 
-    pub fn unbind(&mut self) -> bool {
-        let changed = self.bound.is_some();
-        self.bound = None;
-        changed
-    }
-
-    pub fn toggle_family(&mut self, family: HomeFamily) -> bool {
-        if self.bound == Some(family) {
-            self.unbind()
-        } else {
-            self.bind(family)
+    /// The next frame instant the explore-card hover lift still needs.
+    pub fn hover_lift_deadline_ms(&self, now_ms: u64) -> Option<u64> {
+        if !self.visible || self.card_hover_since_ms == 0 {
+            return None;
         }
+        (now_ms.saturating_sub(self.card_hover_since_ms) < HOME_HOVER_LIFT_MS)
+            .then_some(now_ms.saturating_add(HOME_ENTER_FRAME_MS))
+    }
+
+    /// The next frame instant the art crossfade still needs.
+    pub fn art_deadline_ms(&self, now_ms: u64) -> Option<u64> {
+        if !self.visible || self.art_switched_at_ms == 0 {
+            return None;
+        }
+        (now_ms.saturating_sub(self.art_switched_at_ms) < HOME_ART_SWITCH_MS)
+            .then_some(now_ms.saturating_add(HOME_ENTER_FRAME_MS))
+    }
+
+    pub fn task_draft(&self) -> &TaskDraft {
+        self.draft_for(self.task)
+    }
+
+    /// The kept draft of any task, active or not (explore cards and the
+    /// 更多 popover read the options of tasks that are not selected).
+    pub fn draft_for(&self, family: HomeFamily) -> &TaskDraft {
+        let index = HomeFamily::ALL
+            .iter()
+            .position(|candidate| *candidate == family)
+            .unwrap_or(0);
+        &self.drafts[index]
+    }
+
+    fn task_draft_mut(&mut self) -> &mut TaskDraft {
+        let index = HomeFamily::ALL
+            .iter()
+            .position(|family| *family == self.task)
+            .unwrap_or(0);
+        &mut self.drafts[index]
+    }
+
+    /// Switch the active task. The live input text is saved into the old
+    /// task's draft and the new one is loaded into `input`; the preview
+    /// art crossfade restamps. Returns whether anything changed.
+    pub fn set_task(&mut self, family: HomeFamily, now_ms: u64) -> bool {
+        if self.task == family {
+            return false;
+        }
+        self.task_draft_mut().text = self.input.text().to_string();
+        self.task = family;
+        let text = self.task_draft().text.clone();
+        self.input.set_text(text.clone());
+        self.draft = text;
+        self.art_switched_at_ms = now_ms.max(1);
+        self.more_open = false;
+        self.replace_pending = false;
+        true
+    }
+
+    pub fn set_device(&mut self, device: HomeDevice) {
+        self.task_draft_mut().device = device;
+    }
+
+    pub fn set_ratio(&mut self, ratio: SlideRatio) {
+        self.task_draft_mut().ratio = ratio;
+    }
+
+    pub fn set_info_kind(&mut self, kind: InfoKind) {
+        self.task_draft_mut().info_kind = kind;
+    }
+
+    /// Fill the draft with an example prompt. A non-empty differing draft
+    /// arms the inline confirm strip instead (`replace_pending`), exactly
+    /// like the prototype's replace dialog. Returns `true` when the text
+    /// was filled immediately.
+    pub fn use_example(&mut self, example: &str) -> bool {
+        if self.draft.trim().is_empty() || self.draft == example {
+            self.set_draft(example);
+            self.replace_pending = false;
+            true
+        } else {
+            self.replace_pending = true;
+            false
+        }
+    }
+
+    /// The confirm strip's 使用示例 action.
+    pub fn confirm_replace_example(&mut self, example: &str) {
+        self.set_draft(example);
+        self.replace_pending = false;
+    }
+
+    /// The confirm strip's 保留 action.
+    pub fn keep_draft(&mut self) {
+        self.replace_pending = false;
     }
 
     pub fn set_draft(&mut self, draft: impl Into<String>) {
         self.draft = draft.into();
         self.input.set_text(self.draft.clone());
+        self.task_draft_mut().text = self.draft.clone();
+    }
+
+    fn sync_input_into_draft(&mut self) {
+        self.draft = self.input.text().to_string();
+        self.task_draft_mut().text = self.draft.clone();
+    }
+
+    /// Fold a committed IME composition (or any external input-state
+    /// write) back into the public draft mirror + the active task's
+    /// kept draft.
+    pub fn sync_committed_input(&mut self) {
+        self.sync_input_into_draft();
     }
 
     pub fn insert_text(&mut self, text: &str, now_ms: u64) -> bool {
@@ -255,7 +494,7 @@ impl HomeState {
             return false;
         }
         self.input.insert_str(text, now_ms);
-        self.draft = self.input.text().to_string();
+        self.sync_input_into_draft();
         true
     }
 
@@ -264,7 +503,7 @@ impl HomeState {
         self.input.backspace(now_ms);
         let changed = before != (self.input.text().to_string(), self.input.selection());
         if changed {
-            self.draft = self.input.text().to_string();
+            self.sync_input_into_draft();
         }
         changed
     }
@@ -274,7 +513,7 @@ impl HomeState {
         self.input.delete_forward(now_ms);
         let changed = before != (self.input.text().to_string(), self.input.selection());
         if changed {
-            self.draft = self.input.text().to_string();
+            self.sync_input_into_draft();
         }
         changed
     }
@@ -298,95 +537,10 @@ impl HomeState {
     }
 
     pub fn generation_prompt(&self) -> Option<String> {
-        self.bound
-            .unwrap_or(HomeFamily::AppUi)
-            .generation_prompt(&self.draft, self.device)
+        self.task.generation_prompt(self.task_draft())
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn entry_surface_round_trips_wire_values() {
-        assert_eq!(
-            EntrySurface::from_str(EntrySurface::Home.as_str()),
-            EntrySurface::Home
-        );
-        assert_eq!(
-            EntrySurface::from_str(EntrySurface::Canvas.as_str()),
-            EntrySurface::Canvas
-        );
-        assert_eq!(EntrySurface::from_str("old-value"), EntrySurface::Home);
-    }
-
-    #[test]
-    fn every_family_wraps_non_empty_draft_and_preserves_device() {
-        for family in HomeFamily::ALL {
-            let mobile = family
-                .generation_prompt("  取餐预约  ", HomeDevice::Mobile)
-                .unwrap();
-            let desktop = family
-                .generation_prompt("取餐预约", HomeDevice::Desktop)
-                .unwrap();
-            assert!(mobile.contains("取餐预约"));
-            assert!(desktop.contains("取餐预约"));
-            if family == HomeFamily::AppUi {
-                assert!(mobile.contains("手机"));
-                assert!(desktop.contains("桌面"));
-            }
-        }
-    }
-
-    #[test]
-    fn family_binding_toggles_between_bound_and_unbound() {
-        let mut home = HomeState::default();
-        assert!(home.bind(HomeFamily::AppUi));
-        assert!(!home.bind(HomeFamily::AppUi));
-        assert!(home.toggle_family(HomeFamily::AppUi));
-        assert_eq!(home.bound, None);
-        assert!(home.toggle_family(HomeFamily::KnowledgeCards));
-        assert_eq!(home.bound, Some(HomeFamily::KnowledgeCards));
-    }
-
-    #[test]
-    fn hide_drops_pointer_state_and_resets_the_entrance_stamp() {
-        let mut home = HomeState {
-            visible: true,
-            shown_at_ms: 5_000,
-            hover: Some(HomeHit::Send),
-            pressed: Some(HomeHit::Send),
-            connect_card_open: true,
-            ..HomeState::default()
-        };
-        home.hide();
-        assert!(!home.visible);
-        assert_eq!(home.hover, None);
-        assert_eq!(home.pressed, None);
-        assert_eq!(home.shown_at_ms, 0, "the next show must animate again");
-        assert!(
-            !home.connect_card_open,
-            "the modal card must not survive the surface"
-        );
-    }
-
-    #[test]
-    fn entrance_deadline_frames_only_inside_the_window() {
-        let mut home = HomeState::default();
-        assert_eq!(home.entrance_deadline_ms(5_000), None, "hidden");
-        home.visible = true;
-        assert_eq!(home.entrance_deadline_ms(5_000), None, "not stamped yet");
-        home.shown_at_ms = 5_000;
-        assert_eq!(home.entrance_deadline_ms(5_000), Some(5_016));
-        assert_eq!(
-            home.entrance_deadline_ms(5_000 + HOME_ENTER_WINDOW_MS - 1),
-            Some(5_000 + HOME_ENTER_WINDOW_MS - 1 + HOME_ENTER_FRAME_MS)
-        );
-        assert_eq!(
-            home.entrance_deadline_ms(5_000 + HOME_ENTER_WINDOW_MS),
-            None,
-            "settled"
-        );
-    }
-}
+#[path = "home_tests.rs"]
+mod tests;

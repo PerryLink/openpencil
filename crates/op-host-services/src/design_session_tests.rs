@@ -4,6 +4,7 @@
 //! per-topic modules' `use super::*` reaching `design_session`'s items.
 
 use super::*;
+use op_editor_ui::widgets::TOP_BAR_HEIGHT;
 
 #[cfg(test)]
 mod spawn_worker_tests {
@@ -671,7 +672,13 @@ Calm and focused.
         let mut state = EditorState::new();
         let mut events: Vec<Progress> = Vec::new();
         let mut done = false;
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // A wall-clock backstop against a HUNG worker, not a performance
+        // budget. This run drives a real orchestrator over a vision
+        // extraction and measures 9.1–9.8 s on a warm debug build, so
+        // the old 10 s budget failed roughly one run in four — a timeout
+        // whose margin is 200 ms tests the machine's load, not the code.
+        // Keep it generous: a genuinely stuck worker still trips it.
+        let deadline = Instant::now() + Duration::from_secs(60);
         while !done {
             if let Ok(req) = cmd_rx.recv_timeout(Duration::from_millis(100)) {
                 let applied = match req.op {
@@ -728,4 +735,37 @@ Calm and focused.
             "the planning call saw the extracted skeleton"
         );
     }
+}
+
+/// The design pipeline's auto-fit must size itself against the canvas
+/// the host actually paints into. The Studio workspace docks the chat on
+/// the left and reserves a deck strip at the bottom; fitting to the full
+/// window there put every generated board low and right of centre.
+#[test]
+fn the_design_fit_uses_the_docked_workspace_canvas() {
+    let mut state = op_editor_core::EditorState::starter();
+    let plain = design_canvas_size(&state, 1440.0, 900.0);
+    // Open the workspace the way production does: the left rail IS the
+    // dock now, so the opener is what puts the chrome in the docked
+    // shape (panel open, Chat tab showing).
+    state.editor_ui.open_workspace_for_generation(
+        op_editor_core::HomeFamily::Presentation,
+        "deck brief",
+        op_editor_core::TaskDraft::default(),
+        0,
+        0,
+        None,
+    );
+    let docked = design_canvas_size(&state, 1440.0, 900.0);
+    assert!(
+        docked.0 < plain.0,
+        "the dock takes width: {docked:?} vs {plain:?}"
+    );
+    assert!(
+        docked.1 < plain.1,
+        "the deck strip takes height: {docked:?} vs {plain:?}"
+    );
+    let (_, _, region_w, region_h) =
+        op_editor_ui::widgets::host_canvas_geometry::canvas_region(&state, 1440.0, 900.0);
+    assert_eq!(docked, (region_w, region_h), "one source of truth");
 }

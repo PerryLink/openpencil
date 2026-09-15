@@ -225,7 +225,6 @@ mod property_scroll;
 mod release;
 mod release_feedback;
 mod responsive_geometry;
-mod result_view;
 mod scene_state;
 #[cfg(test)]
 mod scene_template_host_tests;
@@ -283,6 +282,8 @@ mod variables_preset_press;
 mod viewport_fit;
 #[cfg(test)]
 mod window_control_tests;
+mod workspace;
+mod workspace_paint;
 
 /// Cursor affordance the host suggests for a given screen point — re-exported
 /// from `jian-core` so widgets (via `cursor_at`) and hosts share one vocabulary.
@@ -617,6 +618,9 @@ pub struct WidgetHostNative {
     /// `None` — the default arrow — until the new tab's first paint re-stores the
     /// slot under the rotated owner).
     pub(in crate::widget_host) last_chat_session_index: usize,
+    /// Live workspace dock-width drag (press on the dock handle →
+    /// cursor moves → release). `None` outside the gesture.
+    pub(in crate::widget_host) workspace_dock_drag: Option<workspace::WorkspaceDockDrag>,
 }
 
 // Transient pointer-drag records that carry no platform types are

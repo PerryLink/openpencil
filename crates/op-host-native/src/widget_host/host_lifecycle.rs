@@ -97,6 +97,7 @@ impl WidgetHostNative {
             layer_panel_owner: op_editor_ui::widgets::LayerPanel::next_layer_panel_owner(),
             slide_thumbs: Default::default(),
             last_chat_session_index,
+            workspace_dock_drag: None,
             auth_login_handle: None,
             auth_pending_browser_url: None,
             auth_browser_opened: false,

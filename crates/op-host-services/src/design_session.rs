@@ -19,7 +19,6 @@ use std::thread;
 use op_ai::chat_provider::{ChatAttachment, ChatProvider};
 use op_editor_core::{DocRect, EditorCommand, EditorState, Viewport};
 pub use op_editor_host_core::design::{DesignCmdReq, DesignDelta, DesignSession, RemoteDocSink};
-use op_editor_ui::widgets::TOP_BAR_HEIGHT;
 use op_orchestrator::{
     AbortFlag, DesignRequest, DocSink, LlmClient, Orchestrator, Progress,
     SkippedScreenshotProvider, SkippedVisionLlmClient, SpawnAgentResult, SpawnAgentSpec,
@@ -576,20 +575,22 @@ pub fn design_canvas_size(
     viewport_width: f32,
     viewport_height: f32,
 ) -> (f32, f32) {
-    let canvas_left = if state.editor_ui.sidebar_open {
-        state.editor_ui.layer_panel_width
-    } else {
-        0.0
-    };
-    let canvas_right = if state.right_rail_visible() {
-        viewport_width - state.editor_ui.property_panel_width
-    } else {
-        viewport_width
-    };
-    (
-        (canvas_right - canvas_left).max(0.0),
-        (viewport_height - TOP_BAR_HEIGHT).max(0.0),
-    )
+    // Delegate to the ONE function the hosts paint the canvas widget
+    // with. This used to re-derive the size from the sidebar and the
+    // property panel alone, which is right for the professional editor
+    // and wrong everywhere else: the Studio workspace docks the chat on
+    // the left and reserves a deck strip at the bottom, so the design
+    // pipeline's own auto-fit centred each run's boards for a canvas
+    // 320 px wider and 218 px taller than the one they were drawn into,
+    // and every generated deck sat low and right of centre with its last
+    // board clipped (measured 2026-09-13). Two fits, two answers; the
+    // painter's answer is the only one that can be correct.
+    let (_, _, canvas_w, canvas_h) = op_editor_ui::widgets::host_canvas_geometry::canvas_region(
+        state,
+        viewport_width,
+        viewport_height,
+    );
+    (canvas_w, canvas_h)
 }
 
 #[cfg(test)]

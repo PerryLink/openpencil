@@ -91,7 +91,6 @@ mod provider_probe_host;
 mod remote_image_host;
 mod render_cli;
 mod render_cli_error;
-mod result_view_trigger;
 mod save_session;
 mod scene_template_generate;
 mod scene_template_open;
@@ -110,6 +109,7 @@ mod user_template_save;
 mod user_template_store;
 mod window_resize;
 mod window_state;
+mod workspace_phase;
 
 use op_host_native::{NativeBackend, SharedSkiaContext, SharedSkiaError, WidgetHostNative};
 use std::ffi::OsStr;

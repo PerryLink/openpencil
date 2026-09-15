@@ -1,8 +1,9 @@
 //! Home surface input routing for the native widget host.
 
 use super::WidgetHostNative;
-use op_editor_core::{EntrySurface, HomeFamily, HomeHit};
-use op_editor_ui::{widgets::HomeSurface, Point2D};
+use op_editor_core::{EntrySurface, HomeDevice, HomeFamily, HomeHit, InfoKind, SlideRatio};
+use op_editor_ui::widgets::HomeSurface;
+use op_editor_ui::Point2D;
 
 impl WidgetHostNative {
     pub fn home_visible(&self) -> bool {
@@ -21,10 +22,23 @@ impl WidgetHostNative {
         }
         let point = Point2D::new(x, y);
         let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
-        let Some(hit) = home.hit_test(viewport_width, viewport_height, point) else {
+        let hit = home.hit_test(viewport_width, viewport_height, point);
+        drop(home);
+        let Some(hit) = hit else {
+            // A press outside the 更多 popover closes it, like the
+            // prototype's document-level click handler.
+            if self.editor_state.editor_ui.home.more_open {
+                self.editor_state.editor_ui.home.more_open = false;
+                self.mark_dirty();
+            }
             return Some(true);
         };
         self.editor_state.editor_ui.home.pressed = Some(hit);
+        if self.editor_state.editor_ui.home.more_open
+            && !matches!(hit, HomeHit::More | HomeHit::MoreItem(_))
+        {
+            self.editor_state.editor_ui.home.more_open = false;
+        }
         match hit {
             HomeHit::Sheet => {
                 let caret = self.editor_state.editor_ui.home.input.text().len();
@@ -33,28 +47,74 @@ impl WidgetHostNative {
                     .home
                     .set_caret(caret, self.now_ms);
             }
-            HomeHit::Chip(family) => {
-                self.editor_state.editor_ui.home.toggle_family(family);
+            HomeHit::Tab(family) | HomeHit::MoreItem(family) => {
+                self.editor_state
+                    .editor_ui
+                    .home
+                    .set_task(family, self.now_ms);
             }
-            HomeHit::Card(family) => {
-                self.editor_state.editor_ui.home.bind(family);
+            HomeHit::More => {
+                let open = !self.editor_state.editor_ui.home.more_open;
+                self.editor_state.editor_ui.home.more_open = open;
             }
-            HomeHit::Device(device) => {
-                self.editor_state.editor_ui.home.device = device;
+            HomeHit::Segment(index) => {
+                let home = &mut self.editor_state.editor_ui.home;
+                match home.task {
+                    HomeFamily::AppUi => home.set_device(match index {
+                        1 => HomeDevice::Desktop,
+                        _ => HomeDevice::Mobile,
+                    }),
+                    HomeFamily::Presentation => home.set_ratio(match index {
+                        1 => SlideRatio::Classic43,
+                        _ => SlideRatio::Wide169,
+                    }),
+                    HomeFamily::Infographic => home.set_info_kind(match index {
+                        2 => InfoKind::Comparison,
+                        1 => InfoKind::Flow,
+                        _ => InfoKind::Data,
+                    }),
+                    _ => {}
+                }
+                home.art_switched_at_ms = self.now_ms.max(1);
             }
             HomeHit::Attachment => {
-                // The existing chat attachment picker is the one M0-supported
-                // image-input path. It will open from the desktop event drain.
+                // The existing chat attachment picker is the one M1-supported
+                // image-input path. It opens from the desktop event drain;
+                // the staged list it produces is the composer's source of truth.
                 self.editor_state.chat.pending_attachment_pick = true;
             }
-            HomeHit::TryExample => {
-                let draft = match self.editor_state.editor_ui.home.bound {
-                    Some(HomeFamily::KnowledgeCards) => "把这段内容做成一套知识卡片",
-                    Some(HomeFamily::ScreenshotTutorial) => "把这几张截图串成一篇步骤教程",
-                    Some(HomeFamily::EventPoster) => "做一张周末音乐节活动海报",
-                    _ => "做一个三页的取餐预约 mobile app",
-                };
-                self.editor_state.editor_ui.home.set_draft(draft);
+            HomeHit::UseExample => {
+                let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
+                let example = home.example_prompt().to_string();
+                drop(home);
+                self.editor_state.editor_ui.home.use_example(&example);
+            }
+            HomeHit::BackToWorkspace => {
+                // The same footer rect, the workspace-active reading:
+                // drop the Home takeover and take the workspace back
+                // (state, view, and phase were all kept).
+                self.editor_state.editor_ui.home.hide();
+                self.editor_state.editor_ui.workspace.reenter(self.now_ms);
+            }
+            HomeHit::ReplaceKeep => {
+                self.editor_state.editor_ui.home.keep_draft();
+            }
+            HomeHit::ReplaceConfirm => {
+                let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
+                let example = home.example_prompt().to_string();
+                drop(home);
+                self.editor_state
+                    .editor_ui
+                    .home
+                    .confirm_replace_example(&example);
+            }
+            HomeHit::ExploreCard(family) => {
+                let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
+                let example = home.example_prompt_for(family).to_string();
+                drop(home);
+                let home = &mut self.editor_state.editor_ui.home;
+                home.set_task(family, self.now_ms);
+                home.use_example(&example);
             }
             HomeHit::Professional => {
                 self.editor_state.editor_ui.home.hide();
@@ -115,13 +175,14 @@ impl WidgetHostNative {
                 self.editor_state.editor_ui.pending_file_action =
                     Some(op_editor_core::FileAction::Open);
             }
-            HomeHit::Recent => {
-                // Recent projects are listed in a later Home pass; the label
-                // remains a safe, consuming target in M0.
+            HomeHit::Recent(index) => {
+                if index < self.editor_state.editor_ui.recent_files.len() {
+                    self.editor_state.editor_ui.pending_file_action =
+                        Some(op_editor_core::FileAction::OpenRecent(index));
+                }
             }
-            HomeHit::ReferenceLink | HomeHit::Figma | HomeHit::Footer => {
-                // Visible but disabled in M0; the eventual tooltip is also
-                // deliberately deferred with the link/Figma implementation.
+            HomeHit::ReferenceLink | HomeHit::Figma => {
+                // Visible but disabled in M1; the tooltip explains why.
             }
         }
         self.mark_dirty();
@@ -143,6 +204,18 @@ impl WidgetHostNative {
         if self.editor_state.editor_ui.home.hover == next {
             return Some(true);
         }
+        let previous = self.editor_state.editor_ui.home.hover;
+        let card_of = |hit: Option<HomeHit>| match hit {
+            Some(HomeHit::ExploreCard(family)) => Some(family),
+            _ => None,
+        };
+        let (from, to) = (card_of(previous), card_of(next));
+        if from.is_some() || to.is_some() {
+            self.editor_state
+                .editor_ui
+                .home
+                .stamp_card_hover(from, self.now_ms);
+        }
         self.editor_state.editor_ui.home.hover = next;
         self.mark_dirty();
         Some(true)
@@ -152,20 +225,43 @@ impl WidgetHostNative {
         let Some(prompt) = self.editor_state.editor_ui.home.generation_prompt() else {
             return false;
         };
-        // Arm the M1a reopen intent: when THIS turn finishes, the desktop
-        // idle edge opens the 成品视图 over the canvas. Family and brief
-        // are copied now because Home is about to hide.
-        let family = self
-            .editor_state
-            .editor_ui
-            .home
-            .bound
-            .unwrap_or(HomeFamily::AppUi);
+        // A brief started from Home is a NEW deliverable, so it needs a
+        // page of its own. Without this the run appends to whatever the
+        // last one drew and the two designs share a canvas, a deck strip
+        // and a transcript (measured 2026-09-13: a 演示文稿 brief landed
+        // its 5 slides beside the previous coffee app's 3 screens, and
+        // the strip listed all 8 as one deck). A page that is still the
+        // untouched starter has nothing to protect, so the very first
+        // run keeps the document it was launched on.
+        if !op_editor_core::blank_starter::active_page_is_blank_starter(&self.editor_state) {
+            self.start_fresh_document_for_home();
+        }
+        // Open the generation workspace on the SAME document: the chat
+        // pins into the dock and the canvas renders the boards the run
+        // produces. Family, brief, and the task's options are captured
+        // now because Home is about to hide. `run_epoch = 0` until the
+        // desktop launch stamps the live agent epoch.
+        let family = self.editor_state.editor_ui.home.task;
         let brief = self.editor_state.editor_ui.home.draft.trim().to_string();
-        self.editor_state
-            .editor_ui
-            .result_view
-            .arm_for_generation(family, brief);
+        let options = self.editor_state.editor_ui.home.task_draft().clone();
+        let previous_tool = Some(self.editor_state.tool);
+        {
+            // The workspace opener also opens the LEFT PANEL on the
+            // Chat tab (the one-time width bump included) — the dock is
+            // the rail, so a run always lands with its conversation
+            // visible and Professional Editing keeps it that way.
+            self.editor_state.editor_ui.open_workspace_for_generation(
+                family,
+                brief,
+                options,
+                0,
+                self.now_ms,
+                previous_tool,
+            );
+        }
+        // Pan-only viewing while the workspace owns the canvas; the
+        // previous tool is restored on 专业编辑.
+        self.editor_state.tool = op_editor_core::Tool::Hand;
         self.editor_state.editor_ui.home.hide();
         self.editor_state.chat.focus_input_at_end(self.now_ms);
         self.editor_state.chat.set_input_text(prompt);
@@ -257,13 +353,9 @@ impl WidgetHostNative {
             return false;
         }
         if !text.is_empty() {
-            self.editor_state
-                .editor_ui
-                .home
-                .input
-                .commit_text(text, self.now_ms);
-            self.editor_state.editor_ui.home.draft =
-                self.editor_state.editor_ui.home.input.text().to_string();
+            let home = &mut self.editor_state.editor_ui.home;
+            home.input.commit_text(text, self.now_ms);
+            home.sync_committed_input();
         }
         self.mark_dirty();
         true
@@ -313,14 +405,15 @@ mod tests {
     fn home_typing_and_enter_queue_the_wrapped_chat_turn() {
         let mut host = WidgetHostNative::new();
         host.editor_state_mut().editor_ui.home.visible = true;
-        host.editor_state_mut()
-            .editor_ui
-            .home
-            .bind(HomeFamily::AppUi);
         for character in "取餐预约".chars() {
             assert!(host.apply_text(character));
         }
         assert_eq!(host.editor_state().editor_ui.home.draft, "取餐预约");
+        assert_eq!(
+            host.editor_state().editor_ui.home.task_draft().text,
+            "取餐预约",
+            "typing lands in the active task's draft"
+        );
         let expected = host
             .editor_state()
             .editor_ui
@@ -337,10 +430,90 @@ mod tests {
     }
 
     #[test]
+    fn switching_tabs_and_back_restores_each_task_draft() {
+        let mut host = WidgetHostNative::new();
+        host.editor_state_mut().editor_ui.home.visible = true;
+        for character in "取餐预约".chars() {
+            assert!(host.apply_text(character));
+        }
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+        let layout = home.layout(W, H);
+        let poster_tab = center(layout.tabs[6]);
+        assert!(host.apply_press(poster_tab.x, poster_tab.y, W, H));
+        assert_eq!(
+            host.editor_state().editor_ui.home.task,
+            HomeFamily::EventPoster
+        );
+        assert!(host.editor_state().editor_ui.home.draft.is_empty());
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+        let layout = home.layout(W, H);
+        let app_tab = center(layout.tabs[0]);
+        assert!(host.apply_press(app_tab.x, app_tab.y, W, H));
+        assert_eq!(host.editor_state().editor_ui.home.draft, "取餐预约");
+    }
+
+    #[test]
+    fn send_with_an_empty_draft_is_a_noop() {
+        let mut host = WidgetHostNative::new();
+        host.editor_state_mut().editor_ui.home.visible = true;
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+        let send = center(home.layout(W, H).send);
+        assert!(host.apply_press(send.x, send.y, W, H));
+        assert!(
+            host.editor_state().chat.pending_send.is_none(),
+            "an empty draft queues nothing"
+        );
+        assert!(
+            host.editor_state().editor_ui.home.connect_card_open,
+            "with no usable agent the connect card opens instead"
+        );
+    }
+
+    #[test]
+    fn using_the_example_fills_the_draft() {
+        let mut host = WidgetHostNative::new();
+        host.editor_state_mut().editor_ui.home.visible = true;
+        let expected = {
+            let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+            home.example_prompt().to_string()
+        };
+        let use_example = {
+            let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+            center(home.layout(W, H).use_example)
+        };
+        assert!(host.apply_press(use_example.x, use_example.y, W, H));
+        assert_eq!(host.editor_state().editor_ui.home.draft, expected);
+    }
+
+    #[test]
+    fn a_busy_draft_arms_the_inline_replace_strip() {
+        let mut host = WidgetHostNative::new();
+        host.editor_state_mut().editor_ui.home.visible = true;
+        host.editor_state_mut()
+            .editor_ui
+            .home
+            .set_draft("我自己的需求");
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+        let expected = home.example_prompt().to_string();
+        let layout = home.layout(W, H);
+        let use_example = center(layout.use_example);
+        assert!(host.apply_press(use_example.x, use_example.y, W, H));
+        assert!(host.editor_state().editor_ui.home.replace_pending);
+        assert_eq!(host.editor_state().editor_ui.home.draft, "我自己的需求");
+        // 使用示例 replaces the draft via the strip.
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
+        let layout = home.layout(W, H);
+        let confirm = center(layout.replace_use);
+        assert!(host.apply_press(confirm.x, confirm.y, W, H));
+        assert!(!host.editor_state().editor_ui.home.replace_pending);
+        assert_eq!(host.editor_state().editor_ui.home.draft, expected);
+    }
+
+    #[test]
     fn professional_mode_hides_home_and_sets_canvas_preference() {
         let mut host = WidgetHostNative::new();
         host.editor_state_mut().editor_ui.home.visible = true;
-        let home = HomeSurface::for_editor(host.editor_state()).unwrap();
+        let home = HomeSurface::for_editor(host.editor_state()).expect("home");
         let rect = home.layout(W, H).professional;
         assert!(host.apply_press(rect.origin.x + 4.0, rect.origin.y + 4.0, W, H));
         assert!(!host.home_visible());
@@ -348,5 +521,12 @@ mod tests {
             host.editor_state().editor_ui.entry_surface,
             EntrySurface::Canvas
         );
+    }
+
+    fn center(rect: op_editor_ui::Rect) -> Point2D {
+        Point2D::new(
+            rect.origin.x + rect.size.x / 2.0,
+            rect.origin.y + rect.size.y / 2.0,
+        )
     }
 }

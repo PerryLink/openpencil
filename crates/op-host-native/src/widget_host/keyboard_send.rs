@@ -285,6 +285,11 @@ impl WidgetHostNative {
         // `begin_send` itself gates on (text OR staged attachments) —
         // an attachment-only turn is valid, so don't short-circuit on
         // empty text here.
+        // Same as the click path: a send from the composer-only card
+        // moves the user to the rail's Agent tab, where the reply is.
+        if self.editor_state.editor_ui.chat_composer_only() {
+            self.editor_state.editor_ui.enter_chat_tab();
+        }
         // Real provider turn — raises `chat.pending_send`.
         let sent = self.editor_state.chat.begin_send();
         if sent {

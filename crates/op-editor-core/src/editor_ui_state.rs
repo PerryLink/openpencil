@@ -20,10 +20,10 @@ pub mod groups;
 pub mod home;
 mod methods;
 pub mod pickers;
-pub mod result_view;
 pub mod slides_panel_state;
 #[cfg(test)]
 mod tests;
+pub mod workspace;
 
 pub use exports::*;
 
@@ -46,6 +46,11 @@ pub struct EditorUiState {
     pub sidebar_open: bool,
     pub layer_panel_width: f32,
     pub property_panel_width: f32,
+    /// Whether this session's one-time Chat-tab width bump has run (see
+    /// `CHAT_TAB_MIN_WIDTH`). Transient by design — a fresh session gets
+    /// one bump again, and the user's own drag is never overridden after
+    /// it. Never serialized.
+    pub chat_tab_width_bumped: bool,
     /// Responsive layout: live size class, touch density (≥44pt targets,
     /// bottom dock, sheets), and the single open mobile sheet.
     pub size_class: crate::size_class::EditorSizeClass,
@@ -70,9 +75,9 @@ pub struct EditorUiState {
     /// Drafting-table Home chrome state. Transient except for
     /// `entry_surface`, which is persisted in app settings.
     pub home: HomeState,
-    /// Post-generation 成品视图 chrome state. Fully transient — never
-    /// persisted across documents (see `preserve_app_preferences`).
-    pub result_view: ResultViewState,
+    /// Studio generation-workspace chrome state (docked chat + real
+    /// canvas on the same document). Fully transient — never persisted.
+    pub workspace: WorkspaceState,
     /// UI locale — TopBar Globe cycles.
     pub locale: Locale,
     /// A runtime catalog selected in the web picker but not installed yet.

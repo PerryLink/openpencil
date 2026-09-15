@@ -1,19 +1,23 @@
-//! The desktop-first 制图台 Home surface.
+//! The desktop-first Studio Home surface (制图台).
 //!
-//! Geometry and hit-testing live here; the immediate-mode paint pass is in
-//! `home_surface_paint.rs`. The surface is intentionally document-agnostic:
-//! it reads the same `EditorState` as the canvas and never creates a second
-//! model.
+//! Geometry and hit-testing live here; the immediate-mode paint pass is
+//! in `home_surface_paint.rs`. The surface is intentionally document-
+//! agnostic: it reads the same `EditorState` as the canvas and never
+//! creates a second model.
 
 use crate::theme::Theme;
 use crate::widgets::editor_state_ext::theme_for;
 use crate::widgets::{LayoutBox, LayoutCx, PaintCx, Widget, WidgetId};
 use crate::{Point2D, Rect};
-use op_editor_core::{EditorState, HomeDevice, HomeFamily, HomeHit, HomeState};
+use op_editor_core::{EditorState, HomeFamily, HomeHit, HomeState};
 
 #[path = "home_surface_palette.rs"]
 mod palette;
-pub use palette::HomePalette;
+pub(crate) use palette::fade;
+pub use palette::StudioPalette;
+
+#[path = "home_surface_copy.rs"]
+mod copy;
 
 #[path = "home_surface_model.rs"]
 mod model;
@@ -26,155 +30,65 @@ pub use model::{
 #[path = "home_surface_connect.rs"]
 mod connect;
 
-pub const HOME_TOPBAR_H: f32 = 64.0;
-const CONTENT_MAX_W: f32 = 720.0;
-const PAGE_PAD: f32 = 48.0;
-const CARD_MAX_W: f32 = 280.0;
-const CARD_GAP: f32 = 22.0;
-const CARD_ROW_GAP: f32 = 18.0;
-const FOOTER_H: f32 = 22.0;
-const FOOTER_BOTTOM_GAP: f32 = 14.0;
-const STACK_BOTTOM_GAP: f32 = 14.0;
-const HEADLINE_H: f32 = 52.0;
-const SUBTITLE_H: f32 = 18.0;
-const SHEET_H: f32 = 150.0;
-const CHIP_H: f32 = 38.0;
-const EXPECTED_H: f32 = 26.0;
-const CARDS_GAP: f32 = 40.0;
-/// Widest the flexible band between the expected row and the example
-/// cards may grow (the prototype at 1440×900 measures 116 px); beyond
-/// that the whole stack re-centres instead of stretching.
-const CARDS_GAP_MAX: f32 = 116.0;
-/// Where the headline sits at the reference size: the prototype's hero
-/// starts 98 px under the top bar.
-const HERO_TOP_MIN: f32 = HOME_TOPBAR_H + 98.0;
-/// The example cards end this far above the footer when bottom-anchored.
-const CARDS_FOOTER_GAP: f32 = 22.0;
-const FOOTER_X: f32 = 80.0;
-const CARD_H: f32 = 200.0;
+#[path = "home_surface_layout.rs"]
+pub(crate) mod layout;
+pub use layout::{HomeLayout, EXPLORE_FAMILIES};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HomeLayout {
-    pub headline: Rect,
-    pub subtitle: Rect,
-    pub sheet: Rect,
-    pub sheet_text: Rect,
-    pub screenshot: Rect,
-    pub reference_link: Rect,
-    pub figma: Rect,
-    pub example: Rect,
-    pub send: Rect,
-    /// The model chip pill left of the hint.
-    pub model_chip: Rect,
-    pub chips: [Rect; 4],
-    pub expected: Rect,
-    pub device_mobile: Rect,
-    pub device_desktop: Rect,
-    pub cards: [Rect; 4],
-    pub footer: Rect,
-    pub professional: Rect,
-    /// The 接入卡 modal card centred over the sheet (drawn only while
-    /// `connect_card_open`).
-    pub connect_card: Rect,
-    pub connect_rows: [Rect; 3],
-}
+/// Top bar height; the page content scrolls under it.
+pub const HOME_TOPBAR_H: f32 = 56.0;
 
-impl HomeLayout {
-    pub fn cards_wrap(&self, viewport_width: f32) -> bool {
-        viewport_width <= 1180.0
-    }
-
-    pub fn card_family(index: usize) -> Option<HomeFamily> {
-        HomeFamily::ALL.get(index).copied()
-    }
-
-    fn translated_stack(self, scroll_y: f32) -> Self {
-        let translate = |rect: Rect| {
-            Rect::xywh(
-                rect.origin.x,
-                rect.origin.y - scroll_y,
-                rect.size.x,
-                rect.size.y,
-            )
-        };
-        Self {
-            headline: translate(self.headline),
-            subtitle: translate(self.subtitle),
-            sheet: translate(self.sheet),
-            sheet_text: translate(self.sheet_text),
-            screenshot: translate(self.screenshot),
-            reference_link: translate(self.reference_link),
-            figma: translate(self.figma),
-            example: translate(self.example),
-            send: translate(self.send),
-            model_chip: translate(self.model_chip),
-            chips: self.chips.map(translate),
-            expected: translate(self.expected),
-            device_mobile: translate(self.device_mobile),
-            device_desktop: translate(self.device_desktop),
-            cards: self.cards.map(translate),
-            footer: self.footer,
-            professional: translate(self.professional),
-            connect_card: translate(self.connect_card),
-            connect_rows: self.connect_rows.map(translate),
-        }
-    }
-}
-
-/// ease-out-cubic — the settle curve the entrance choreography uses
-/// (the prototype's `cubic-bezier(.05,.7,.1,1)` approximation).
+/// ease-out-cubic — the settle curve the entrance choreography uses.
 fn ease_out_cubic(t: f32) -> f32 {
     1.0 - (1.0 - t).powi(3)
 }
 
-/// One block of the Home entrance choreography. The expected row has no
-/// variant: it deliberately never moves.
+/// One block of the Home entrance choreography (welcome, tabs, panels,
+/// explore cards stagger 0/60/120/180 ms over 220 ms, rise 8 px).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HomeEnterBlock {
-    Headline,
-    Subtitle,
-    Underline,
-    Sheet,
-    Chip,
-    Card,
-    Footer,
+    Welcome,
+    Tabs,
+    Panels,
+    Explore,
+    Recent,
 }
 
-/// `(start_ms, duration_ms, rise_px)` for one block; `index` staggers the
-/// chip and card blocks, every other block ignores it.
-fn enter_timing(block: HomeEnterBlock, index: usize) -> (u64, u64, f32) {
-    match block {
-        HomeEnterBlock::Headline => (0, 420, 16.0),
-        HomeEnterBlock::Subtitle => (80, 360, 12.0),
-        // The underline draws left→right; its eased phase is the drawn
-        // fraction of the wavy path (returned as the alpha slot).
-        HomeEnterBlock::Underline => (520, 900, 0.0),
-        HomeEnterBlock::Sheet => (140, 360, 12.0),
-        HomeEnterBlock::Chip => (260 + 40 * index as u64, 300, 8.0),
-        HomeEnterBlock::Card => (380 + 70 * index as u64, 360, 18.0),
-        HomeEnterBlock::Footer => (600, 300, 0.0),
+impl HomeEnterBlock {
+    /// `(start_ms, duration_ms)` — rise is 8 px for every block.
+    pub const fn timing(self) -> (u64, u64) {
+        match self {
+            Self::Welcome => (0, 220),
+            Self::Tabs => (60, 220),
+            Self::Panels => (120, 220),
+            Self::Explore => (180, 220),
+            Self::Recent => (180, 220),
+        }
     }
 }
 
 /// A block's entrance phase at `now_ms`: `(rise_offset_y, alpha)` with
-/// ease-out-cubic timing. Rise offsets paint the block `dy` px BELOW its
-/// final rect; alpha fades every colour. For [`HomeEnterBlock::Underline`]
-/// the alpha slot is the left→right drawn fraction instead. A `shown_at_ms`
-/// of 0 means "not started" — the surface paints settled (`t = 1`).
-pub fn home_enter(
-    block: HomeEnterBlock,
-    index: usize,
-    shown_at_ms: u64,
-    now_ms: u64,
-) -> (f32, f32) {
+/// ease-out timing. Rise offsets paint the block `dy` px BELOW its final
+/// rect; alpha fades every colour. A `shown_at_ms` of 0 means "not
+/// started" — the surface paints settled (`t = 1`).
+pub fn home_enter(block: HomeEnterBlock, shown_at_ms: u64, now_ms: u64) -> (f32, f32) {
     if shown_at_ms == 0 {
         return (0.0, 1.0);
     }
-    let (start, duration, rise) = enter_timing(block, index);
+    let (start, duration) = block.timing();
     let elapsed = now_ms.saturating_sub(shown_at_ms.saturating_add(start));
     let t = (elapsed as f32 / duration as f32).clamp(0.0, 1.0);
     let eased = ease_out_cubic(t);
-    ((1.0 - eased) * rise, eased)
+    ((1.0 - eased) * 8.0, eased)
+}
+
+/// The example-art crossfade phase at `now_ms` (0 → 1 over
+/// [`op_editor_core::HOME_ART_SWITCH_MS`]); 1 when nothing is switching.
+pub fn art_switch_phase(switched_at_ms: u64, now_ms: u64) -> f32 {
+    if switched_at_ms == 0 {
+        return 1.0;
+    }
+    let elapsed = now_ms.saturating_sub(switched_at_ms);
+    ease_out_cubic((elapsed as f32 / op_editor_core::HOME_ART_SWITCH_MS as f32).clamp(0.0, 1.0))
 }
 
 pub struct HomeSurface<'a> {
@@ -188,8 +102,14 @@ pub struct HomeSurface<'a> {
     /// usable) so layout and paint cannot disagree.
     pub chip_label: String,
     /// Whether any chat agent can answer — drives the chip's empty
-    /// state and the send button's faded fill.
+    /// state and the send button's disabled fill.
     pub usable_agent: bool,
+    /// Names of the chat composer's staged attachments (the shared
+    /// `chat.pending_attachments` list is the single source of truth).
+    pub attachment_names: Vec<String>,
+    /// Recent `.op` files (basename only), capped to the row's five
+    /// chips.
+    pub recent_files: Vec<String>,
 }
 
 impl<'a> HomeSurface<'a> {
@@ -206,249 +126,84 @@ impl<'a> HomeSurface<'a> {
             now_ms,
             chip_label: model::model_chip_label(state),
             usable_agent: state.has_usable_chat_agent(),
+            attachment_names: state
+                .chat
+                .pending_attachments
+                .iter()
+                .map(|attachment| attachment.name.clone())
+                .collect(),
+            recent_files: state
+                .editor_ui
+                .recent_files
+                .iter()
+                .take(5)
+                .map(|file| {
+                    file.path
+                        .rsplit(['/', '\\'])
+                        .next()
+                        .unwrap_or(&file.path)
+                        .to_string()
+                })
+                .collect(),
         })
     }
 
     pub fn layout_for(
         viewport_width: f32,
         viewport_height: f32,
-        bound: Option<HomeFamily>,
+        task: HomeFamily,
         model_chip_label_w: f32,
     ) -> HomeLayout {
-        Self::layout_for_scrolled(
-            viewport_width,
-            viewport_height,
-            bound,
-            0.0,
-            model_chip_label_w,
-        )
+        layout::layout_for(viewport_width, viewport_height, task, model_chip_label_w)
     }
 
     pub fn layout_for_scrolled(
         viewport_width: f32,
         viewport_height: f32,
-        bound: Option<HomeFamily>,
+        task: HomeFamily,
         scroll_y: f32,
         model_chip_label_w: f32,
     ) -> HomeLayout {
-        let width = viewport_width.max(1.0);
-        let height = viewport_height.max(1.0);
-        let narrow = width <= 1180.0;
-        let footer = Rect::xywh(
-            FOOTER_X,
-            height - FOOTER_BOTTOM_GAP - FOOTER_H,
-            width - FOOTER_X - PAGE_PAD,
-            FOOTER_H,
-        );
-        let top = HOME_TOPBAR_H;
-        let bottom = if narrow {
-            (footer.origin.y - STACK_BOTTOM_GAP).max(top)
-        } else {
-            footer.origin.y.max(top)
-        };
-        let hero_h =
-            HEADLINE_H + 14.0 + SUBTITLE_H + 34.0 + SHEET_H + 18.0 + CHIP_H + 14.0 + EXPECTED_H;
-        let columns = if narrow { 2 } else { 4 };
-        let rows: usize = if narrow { 2 } else { 1 };
-        let card_height = if narrow {
-            (((bottom - top) - hero_h - CARDS_GAP - CARD_ROW_GAP) / 2.0).clamp(104.0, CARD_H)
-        } else {
-            CARD_H
-        };
-        let cards_h = card_height * rows as f32 + CARD_ROW_GAP * (rows.saturating_sub(1) as f32);
-        // Wide viewports follow the prototype's composition: the hero sits
-        // a fixed distance under the top bar, the cards rest just above
-        // the footer, and the band between them flexes — but only up to
-        // `CARDS_GAP_MAX`; any further room re-centres the whole stack so
-        // a tall window never opens a void between the chips and the
-        // cards. Narrow viewports keep the compact centred stack.
-        let cards_gap = if narrow {
-            CARDS_GAP
-        } else {
-            let avail = footer.origin.y - CARDS_FOOTER_GAP - HERO_TOP_MIN;
-            (avail - hero_h - cards_h).clamp(CARDS_GAP, CARDS_GAP_MAX)
-        };
-        let stack_height = hero_h + cards_gap + cards_h;
-        let stack_top = if narrow {
-            top.max(top + ((bottom - top - stack_height) / 2.0).max(0.0))
-        } else {
-            let avail = footer.origin.y - CARDS_FOOTER_GAP - HERO_TOP_MIN;
-            if avail >= stack_height {
-                HERO_TOP_MIN + (avail - stack_height) / 2.0
-            } else {
-                top + ((bottom - top - stack_height) / 2.0).max(0.0)
-            }
-        };
-        let headline = Rect::xywh((width - 520.0) / 2.0, stack_top, 520.0, HEADLINE_H);
-        let subtitle = Rect::xywh(
-            (width - 520.0) / 2.0,
-            headline.origin.y + HEADLINE_H + 14.0,
-            520.0,
-            SUBTITLE_H,
-        );
-        let sheet_width = CONTENT_MAX_W.min((width - PAGE_PAD * 2.0).max(260.0));
-        let sheet = Rect::xywh(
-            (width - sheet_width) / 2.0,
-            subtitle.origin.y + SUBTITLE_H + 34.0,
-            sheet_width,
-            SHEET_H,
-        );
-        let sheet_text = Rect::xywh(
-            sheet.origin.x + 24.0,
-            sheet.origin.y + 20.0,
-            sheet.size.x - 40.0,
-            34.0,
-        );
-        let refs_top = sheet.origin.y + sheet.size.y - 45.0;
-        // Each entry hugs its content (8 px pad · 14 px icon · 5 px · label ·
-        // 8 px pad) so the hover pill and the hit rect are the same shape;
-        // widths are the 13 px sans estimates (CJK 13 px, Latin 7.2 px).
-        let screenshot = Rect::xywh(sheet.origin.x + 16.0, refs_top, 61.0, 28.0);
-        let reference_link = Rect::xywh(screenshot.origin.x + 61.0 + 10.0, refs_top, 87.0, 28.0);
-        let figma = Rect::xywh(reference_link.origin.x + 87.0 + 10.0, refs_top, 71.0, 28.0);
-        let example = Rect::xywh(figma.origin.x + 71.0 + 10.0, refs_top, 94.0, 28.0);
-        let send = Rect::xywh(
-            sheet.origin.x + sheet.size.x - 56.0,
-            sheet.origin.y + sheet.size.y - 52.0,
-            40.0,
-            40.0,
-        );
-        // Bottom-row right-aligned group: model chip · 12 px · send. The
-        // round arrow is the one send control; a "⏎ 发送" hint next to it
-        // read as a second button, so the shortcut is not spelled out.
-        let chip_w =
-            (model::MODEL_CHIP_PREFIX_W + model_chip_label_w + model::MODEL_CHIP_CHEVRON_W)
-                .min(model::MODEL_CHIP_MAX_W);
-        let model_chip = Rect::xywh(
-            send.origin.x - model::CHIP_SEND_GAP - chip_w,
-            refs_top,
-            chip_w,
-            model::MODEL_CHIP_H,
-        );
-
-        let chip_widths = [94.0, 94.0, 94.0, 94.0];
-        let chip_gap = 8.0;
-        let chips_width = chip_widths.iter().sum::<f32>() + chip_gap * 3.0;
-        let chips_x = (width - chips_width) / 2.0;
-        let chips_y = sheet.origin.y + sheet.size.y + 18.0;
-        let chips = [
-            Rect::xywh(chips_x, chips_y, chip_widths[0], CHIP_H),
-            Rect::xywh(
-                chips_x + (chip_widths[0] + chip_gap),
-                chips_y,
-                chip_widths[1],
-                CHIP_H,
-            ),
-            Rect::xywh(
-                chips_x + (chip_widths[0] + chip_gap) * 2.0,
-                chips_y,
-                chip_widths[2],
-                CHIP_H,
-            ),
-            Rect::xywh(
-                chips_x + (chip_widths[0] + chip_gap) * 3.0,
-                chips_y,
-                chip_widths[3],
-                CHIP_H,
-            ),
-        ];
-
-        let expected = Rect::xywh(
-            (width - 580.0) / 2.0,
-            chips_y + CHIP_H + 14.0,
-            580.0,
-            EXPECTED_H,
-        );
-        let card_width = if narrow {
-            ((width - PAGE_PAD * 2.0 - CARD_GAP) / 2.0).min(CARD_MAX_W)
-        } else {
-            CARD_MAX_W
-        };
-        let grid_width = card_width * columns as f32 + CARD_GAP * (columns - 1) as f32;
-        let grid_top = expected.origin.y + EXPECTED_H + cards_gap;
-        let grid_x = (width - grid_width) / 2.0;
-        let mut cards = [Rect::ZERO; 4];
-        for (index, card) in cards.iter_mut().enumerate() {
-            let column = index % columns;
-            let row = index / columns;
-            *card = Rect::xywh(
-                grid_x + column as f32 * (card_width + CARD_GAP),
-                grid_top + row as f32 * (card_height + CARD_ROW_GAP),
-                card_width,
-                card_height,
-            );
-        }
-        let professional = Rect::xywh((width - 270.0).max(PAGE_PAD), 22.0, 222.0, 28.0);
-        let device_mobile = if bound == Some(HomeFamily::AppUi) {
-            Rect::xywh(
-                expected.origin.x + 474.0,
-                expected.origin.y,
-                52.0,
-                EXPECTED_H,
-            )
-        } else {
-            Rect::ZERO
-        };
-        let device_desktop = if bound == Some(HomeFamily::AppUi) {
-            Rect::xywh(
-                expected.origin.x + 526.0,
-                expected.origin.y,
-                52.0,
-                EXPECTED_H,
-            )
-        } else {
-            Rect::ZERO
-        };
-        let (connect_card, connect_rows) = connect::connect_card_rects(sheet);
-        let layout = HomeLayout {
-            headline,
-            subtitle,
-            sheet,
-            sheet_text,
-            screenshot,
-            reference_link,
-            figma,
-            example,
-            send,
-            model_chip,
-            chips,
-            expected,
-            device_mobile,
-            device_desktop,
-            cards,
-            footer,
-            professional,
-            connect_card,
-            connect_rows,
-        };
-        layout.translated_stack(scroll_y.max(0.0))
+        layout::layout_for_scrolled(
+            viewport_width,
+            viewport_height,
+            task,
+            scroll_y,
+            model_chip_label_w,
+        )
     }
 
     pub fn max_scroll_for(
         viewport_width: f32,
         viewport_height: f32,
-        bound: Option<HomeFamily>,
+        task: HomeFamily,
+        model_chip_label_w: f32,
     ) -> f32 {
-        // The chip never affects the scroll bounds — a nominal width is
-        // all the layout needs to place the irrelevant rects.
-        let layout = Self::layout_for(viewport_width, viewport_height, bound, 0.0);
-        let content_bottom = layout
-            .cards
-            .iter()
-            .map(|card| card.origin.y + card.size.y)
-            .fold(layout.expected.origin.y + layout.expected.size.y, f32::max);
-        (content_bottom - layout.footer.origin.y + STACK_BOTTOM_GAP).max(0.0)
+        layout::max_scroll_for(viewport_width, viewport_height, task, model_chip_label_w)
     }
 
     pub fn layout(&self, viewport_width: f32, viewport_height: f32) -> HomeLayout {
-        let max_scroll = Self::max_scroll_for(viewport_width, viewport_height, self.state.bound);
+        let chip_w = model::model_chip_width(&self.chip_label);
+        let max_scroll =
+            Self::max_scroll_for(viewport_width, viewport_height, self.state.task, chip_w);
         Self::layout_for_scrolled(
             viewport_width,
             viewport_height,
-            self.state.bound,
+            self.state.task,
             self.state.scroll_y.clamp(0.0, max_scroll),
-            model::model_chip_width(&self.chip_label),
+            chip_w,
         )
+    }
+
+    /// The active task's example prompt — what 使用这个示例 fills.
+    pub fn example_prompt(&self) -> &'static str {
+        copy::task_copy(self.ui.locale, self.state.task, self.state.task_draft()).example
+    }
+
+    /// Any task's example prompt (the explore cards select a task and
+    /// fill its example in one press).
+    pub fn example_prompt_for(&self, family: HomeFamily) -> &'static str {
+        copy::task_copy(self.ui.locale, family, self.state.draft_for(family)).example
     }
 
     pub fn hit_test(
@@ -468,24 +223,53 @@ impl<'a> HomeSurface<'a> {
         if layout.professional.contains(point) {
             return Some(HomeHit::Professional);
         }
+        if layout.open_file.contains(point) {
+            return Some(HomeHit::OpenFile);
+        }
+        if self.state.more_open && layout.more_popover.contains(point) {
+            for (index, rect) in layout.more_rows.iter().enumerate() {
+                if rect.contains(point) {
+                    let hidden = HomeLayout::hidden_tasks(layout.tabs_row.size.x, self.state.task);
+                    return hidden.get(index).copied().map(HomeHit::MoreItem);
+                }
+            }
+            return Some(HomeHit::More);
+        }
+        if layout.more_button.contains(point) {
+            return Some(HomeHit::More);
+        }
+        for (index, rect) in layout.tabs.into_iter().enumerate() {
+            if rect.contains(point) {
+                return Some(HomeHit::Tab(HomeFamily::ALL[index]));
+            }
+        }
+        for (index, rect) in layout.segment_options.into_iter().enumerate() {
+            if rect.size.x > 0.0 && rect.contains(point) {
+                return Some(HomeHit::Segment(index as u8));
+            }
+        }
+        if self.state.replace_pending {
+            if layout.replace_use.contains(point) {
+                return Some(HomeHit::ReplaceConfirm);
+            }
+            if layout.replace_keep.contains(point) {
+                return Some(HomeHit::ReplaceKeep);
+            }
+        }
+        if layout.use_example.contains(point) {
+            // While a workspace is active on this document the footer
+            // link returns to it instead of offering the example.
+            return Some(if self.ui.workspace.active {
+                HomeHit::BackToWorkspace
+            } else {
+                HomeHit::UseExample
+            });
+        }
         if layout.send.contains(point) {
             return Some(HomeHit::Send);
         }
         if layout.model_chip.contains(point) {
             return Some(HomeHit::ModelChip);
-        }
-        for (index, rect) in layout.chips.into_iter().enumerate() {
-            if rect.contains(point) {
-                return Some(HomeHit::Chip(HomeFamily::ALL[index]));
-            }
-        }
-        if self.state.bound == Some(HomeFamily::AppUi) {
-            if layout.device_mobile.contains(point) {
-                return Some(HomeHit::Device(HomeDevice::Mobile));
-            }
-            if layout.device_desktop.contains(point) {
-                return Some(HomeHit::Device(HomeDevice::Desktop));
-            }
         }
         if layout.screenshot.contains(point) {
             return Some(HomeHit::Attachment);
@@ -496,53 +280,55 @@ impl<'a> HomeSurface<'a> {
         if layout.figma.contains(point) {
             return Some(HomeHit::Figma);
         }
-        if layout.example.contains(point) {
-            return Some(HomeHit::TryExample);
-        }
-        for (index, rect) in layout.cards.into_iter().enumerate() {
-            if rect.contains(point) {
-                return HomeLayout::card_family(index).map(HomeHit::Card);
-            }
-        }
-        if layout.sheet.contains(point) {
+        if layout.input_box.contains(point) {
             return Some(HomeHit::Sheet);
         }
-        if layout.footer.contains(point) {
-            let relative_x = point.x - layout.footer.origin.x;
-            return Some(if relative_x < 100.0 {
-                HomeHit::Recent
-            } else if relative_x < 192.0 {
-                HomeHit::NewCanvas
-            } else {
-                HomeHit::OpenFile
-            });
+        for (index, rect) in layout.explore_cards.into_iter().enumerate() {
+            if rect.contains(point) {
+                return EXPLORE_FAMILIES
+                    .get(index)
+                    .copied()
+                    .map(HomeHit::ExploreCard);
+            }
+        }
+        if layout.new_canvas.contains(point) {
+            return Some(HomeHit::NewCanvas);
+        }
+        if layout.recent.size.y > 0.0 {
+            for (index, rect) in layout.recent_chips.iter().enumerate() {
+                if rect.size.x > 0.0 && rect.contains(point) && index < self.recent_files.len() {
+                    return Some(HomeHit::Recent(index));
+                }
+            }
         }
         None
     }
 
+    /// The IME caret rect inside the composer's input box.
     pub fn focused_input_caret_rect(&self, viewport_width: f32, viewport_height: f32) -> Rect {
-        let text = self.state.input.text();
         let layout = self.layout(viewport_width, viewport_height);
+        let text = self.state.input.text();
         let caret = jian_core::text_input::prev_char_boundary(
             text,
             self.state.input.caret().min(text.len()),
         );
-        let x = layout.sheet_text.origin.x + text[..caret].chars().count() as f32 * 8.0;
-        Rect::xywh(
-            x.min(layout.sheet_text.origin.x + layout.sheet_text.size.x - 1.0),
-            layout.sheet_text.origin.y,
-            1.5,
-            20.0,
-        )
+        // Single-line estimate on the first wrapped row; the IME panel
+        // only needs a stable anchor near the caret.
+        let x = layout.input_box.origin.x
+            + 14.0
+            + (text[..caret].chars().count() as f32 * 8.0).min(layout.input_box.size.x - 16.0);
+        Rect::xywh(x, layout.input_box.origin.y + 13.0, 1.5, 20.0)
     }
 
-    pub fn sheet_text_offset_at(
+    /// Map a press inside the input box to a caret byte offset
+    /// (single-line estimate, matching the caret anchor above).
+    pub fn input_offset_at(
         &self,
         viewport_width: f32,
         viewport_height: f32,
         point: Point2D,
     ) -> Option<usize> {
-        let rect = self.layout(viewport_width, viewport_height).sheet_text;
+        let rect = self.layout(viewport_width, viewport_height).input_box;
         rect.contains(point)
             .then_some(self.state.input.text().len())
     }
@@ -582,6 +368,10 @@ impl HomeSurface<'_> {
 #[cfg(test)]
 #[path = "home_surface_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "home_surface_layout_tests.rs"]
+mod layout_tests;
 
 #[cfg(test)]
 #[path = "home_surface_motion_tests.rs"]

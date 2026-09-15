@@ -6,8 +6,8 @@
 use super::{
     DesignMdPanelState, EditorUiState, EmbedHost, EntrySurface, ExportFormat, FlexLayout,
     GitPanelState, HomeState, Locale, PencilCursorStyle, PreviewState, PromptCenterState,
-    PropertyTab, ResultViewState, SaveNameDialogState, SceneTemplateCenterState, SizeToggleState,
-    ThemeMode, UpdateStatus,
+    PropertyTab, SaveNameDialogState, SceneTemplateCenterState, SizeToggleState, ThemeMode,
+    UpdateStatus, WorkspaceState,
 };
 use crate::tool::Tool;
 use std::collections::HashSet;
@@ -18,6 +18,7 @@ impl Default for EditorUiState {
             sidebar_open: true,
             layer_panel_width: 240.0,
             property_panel_width: 256.0,
+            chat_tab_width_bumped: false,
             size_class: crate::size_class::EditorSizeClass::Expanded,
             touch: false,
             external_cli_available: true,
@@ -26,7 +27,7 @@ impl Default for EditorUiState {
             host_theme_override: None,
             entry_surface: EntrySurface::default(),
             home: HomeState::default(),
-            result_view: ResultViewState::default(),
+            workspace: WorkspaceState::default(),
             locale: Locale::ZhCn,
             pending_locale: None,
             locale_persistence_override: None,
