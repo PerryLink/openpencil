@@ -93,9 +93,45 @@ fn truncate_brief(brief: &str) -> String {
 fn paint_wordmark(cx: &mut PaintCx<'_>, ink: Color, blue: Color) {
     let mark = Rect::xywh(80.0, 22.0, 18.0, 18.0);
     cx.backend.stroke_round_rect(mark, 4.0, ink, 1.5);
-    cx.backend
-        .fill_round_rect(Rect::xywh(84.0, 26.0, 8.0, 8.0), 1.0, blue);
-    text(cx, "OpenPencil", Point2D::new(108.0, 36.0), 14.0, ink, SANS);
+    // The 8 px square rotated 45° from the prototype wordmark.
+    let (cx0, cy0, r) = (89.0, 31.0, 5.6);
+    cx.backend.fill_polygon(
+        &[
+            Point2D::new(cx0, cy0 - r),
+            Point2D::new(cx0 + r, cy0),
+            Point2D::new(cx0, cy0 + r),
+            Point2D::new(cx0 - r, cy0),
+        ],
+        blue,
+    );
+    let mut x = 108.0;
+    for character in "OpenPencil".chars() {
+        let glyph = character.to_string();
+        text_weighted(cx, &glyph, Point2D::new(x, 36.0), 14.0, ink, SANS, 600);
+        x += cx.backend.measure_text_family(&glyph, 14.0, SANS) + 0.28;
+    }
+}
+
+/// The page ground shared with Home: paper, the 24 px dot grid and the
+/// blue margin rule down the left.
+fn paint_ground(cx: &mut PaintCx<'_>, rect: Rect, palette: super::HomePalette) {
+    cx.backend.fill_rect(rect, palette.paper);
+    let mut x = 12.0;
+    while x < rect.size.x {
+        let mut y = 12.0;
+        while y < rect.size.y {
+            cx.backend
+                .fill_oval(Rect::xywh(x - 0.75, y - 0.75, 1.5, 1.5), palette.dots);
+            y += 24.0;
+        }
+        x += 24.0;
+    }
+    cx.backend.stroke_line(
+        Point2D::new(56.0, 0.0),
+        Point2D::new(56.0, rect.size.y),
+        palette.margin_rule,
+        1.0,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -166,32 +202,41 @@ fn paint_button(
 pub(super) fn paint_result_view(surface: &ResultViewSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect) {
     let layout = surface.layout(rect.size.x, rect.size.y);
     let palette = super::HomePalette::for_mode(surface.ui.effective_theme_mode());
-    cx.backend.fill_rect(rect, palette.paper);
+    paint_ground(cx, rect, palette);
 
     paint_wordmark(cx, palette.ink, palette.blue);
     let graphite = palette.graphite;
+    // Same two-tone, right-aligned link as Home: quiet label + action.
+    let pro_hover = surface.state.hover == Some(ResultHit::Professional);
+    let quiet = "专业模式";
+    let action = "直接进画布 →";
+    let quiet_w = cx.backend.measure_text_family(quiet, 13.0, SANS);
+    let action_w = cx.backend.measure_text_family(action, 13.0, SANS);
+    let right = layout.professional.origin.x + layout.professional.size.x;
+    let action_x = right - action_w;
+    let base_y = layout.professional.origin.y + 19.0;
     text(
         cx,
-        "专业模式 · 直接进画布 →",
-        Point2D::new(
-            layout.professional.origin.x,
-            layout.professional.origin.y + 19.0,
-        ),
+        quiet,
+        Point2D::new(action_x - 6.0 - quiet_w, base_y),
         13.0,
-        graphite,
+        palette.ash,
         SANS,
     );
-    if surface.state.hover == Some(ResultHit::Professional) {
+    text_weighted(
+        cx,
+        action,
+        Point2D::new(action_x, base_y),
+        13.0,
+        if pro_hover { palette.ink } else { graphite },
+        SANS,
+        500,
+    );
+    if pro_hover {
         cx.backend.stroke_line(
-            Point2D::new(
-                layout.professional.origin.x,
-                layout.professional.origin.y + 25.0,
-            ),
-            Point2D::new(
-                layout.professional.origin.x + layout.professional.size.x,
-                layout.professional.origin.y + 25.0,
-            ),
-            palette.blue,
+            Point2D::new(action_x, base_y + 5.0),
+            Point2D::new(right, base_y + 5.0),
+            palette.ink,
             1.0,
         );
     }
@@ -297,16 +342,17 @@ pub(super) fn paint_result_view(surface: &ResultViewSurface<'_>, cx: &mut PaintC
         let selected = surface.state.selected == index;
         let pressed = surface.state.pressed == Some(ResultHit::Screen(index));
         if surface.ui.effective_theme_mode() == ThemeMode::Light && alpha > 0.95 {
+            // A soft pool under the board, not a halo around it.
             cx.backend.fill_drop_shadow(
                 Rect::xywh(
-                    slot.origin.x - 2.0,
-                    slot.origin.y + 2.0,
-                    slot.size.x + 4.0,
-                    slot.size.y + 4.0,
+                    slot.origin.x + 8.0,
+                    slot.origin.y + 12.0,
+                    slot.size.x - 16.0,
+                    slot.size.y - 8.0,
                 ),
                 super::BOARD_RADIUS,
-                8.0,
-                Color::BLACK.with_alpha(0.10),
+                16.0,
+                fade(palette.ink, 0.16),
             );
         }
         cx.backend
@@ -346,15 +392,15 @@ pub(super) fn paint_result_view(surface: &ResultViewSurface<'_>, cx: &mut PaintC
     // Thin "→" connectors between consecutive boards.
     for pair in layout.screens.windows(2) {
         let gap_center = (pair[0].origin.x + pair[0].size.x + pair[1].origin.x) / 2.0;
-        let arrow_w = cx.backend.measure_text_family("→", 13.0, SANS);
+        let arrow_w = cx.backend.measure_text_family("→", 18.0, SANS);
         text(
             cx,
             "→",
             Point2D::new(
                 gap_center - arrow_w / 2.0,
-                pair[0].origin.y + pair[0].size.y / 2.0 + 4.0,
+                pair[0].origin.y + pair[0].size.y / 2.0 + 6.0,
             ),
-            13.0,
+            18.0,
             graphite,
             SANS,
         );
@@ -369,14 +415,14 @@ pub(super) fn paint_result_view(surface: &ResultViewSurface<'_>, cx: &mut PaintC
     if surface.ui.effective_theme_mode() == ThemeMode::Light {
         cx.backend.fill_drop_shadow(
             Rect::xywh(
-                panel.origin.x - 2.0,
-                panel.origin.y + 2.0,
-                panel.size.x + 4.0,
-                panel.size.y + 4.0,
+                panel.origin.x + 10.0,
+                panel.origin.y + 14.0,
+                panel.size.x - 20.0,
+                panel.size.y - 8.0,
             ),
             super::PANEL_RADIUS,
-            10.0,
-            Color::BLACK.with_alpha(0.08),
+            18.0,
+            fade(palette.ink, 0.12),
         );
     }
     cx.backend
