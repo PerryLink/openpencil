@@ -377,14 +377,10 @@ impl WidgetHostNative {
             return None;
         }
         if self.editor_state.editor_ui.home.visible {
-            return self.home_model_picker_geometry(viewport_w, viewport_h).map(
-                |(card, _connect_row)| {
-                    // The connect row is part of the picker's footprint,
-                    // but the row-based scroll/hover math inside gates
-                    // only understands the card.
-                    card
-                },
-            );
+            // The card IS the whole footprint now: the external connect
+            // row that used to hang below it is gone, folded into the
+            // picker's own footer.
+            return self.home_model_picker_geometry(viewport_w, viewport_h);
         }
         let chat_rect = self.ai_chat_rect(viewport_w, viewport_h)?;
         AIChatPlaceholder::from_editor(&self.editor_state).model_picker_bounds(chat_rect)

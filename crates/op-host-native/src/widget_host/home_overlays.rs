@@ -14,7 +14,7 @@ use crate::backend::NativeFrameBackend;
 use op_editor_ui::widgets::ai_chat_model_picker::{
     max_picker_scroll, model_picker_hit, paint_model_picker, search_clear_hit, SelectHit,
 };
-use op_editor_ui::widgets::home_surface::{home_model_picker_rects, paint_connect_more_row};
+use op_editor_ui::widgets::home_surface::home_model_picker_rects;
 use op_editor_ui::widgets::{HomeSurface, PaintCx, Widget};
 use op_editor_ui::{Point2D, Rect, RenderBackend};
 
@@ -31,11 +31,12 @@ impl WidgetHostNative {
         if !self.home_visible() {
             return None;
         }
-        let (settings_open, login_open, account_ui) = {
+        let (settings_open, login_open, account_menu_open, account_ui) = {
             let ui = &self.editor_state.editor_ui;
             (
                 ui.agent_settings_open,
                 ui.login_modal_open && (ui.account_ui_available || ui.touch_chrome()),
+                ui.account_menu_open && ui.account_ui_available,
                 ui.chat_model_picker.open,
             )
         };
@@ -50,6 +51,13 @@ impl WidgetHostNative {
             self.dispatch_login_modal_press(x, y, viewport_width, viewport_height);
             return Some(true);
         }
+        // The signed-in half of what Home's avatar opens. Without this
+        // the menu painted and then swallowed nothing: every press fell
+        // through to the surface underneath and the menu never closed.
+        if account_menu_open {
+            self.dispatch_account_menu_press(x, y, viewport_width, viewport_height);
+            return Some(true);
+        }
         if account_ui {
             return self.press_home_model_picker(x, y, viewport_width, viewport_height);
         }
@@ -57,8 +65,9 @@ impl WidgetHostNative {
     }
 
     /// Paint the Home-opened overlays above the takeover: the agent-
-    /// settings modal, the sign-in modal, then the Home-anchored model
-    /// picker with its trailing connect-more row.
+    /// settings modal, the sign-in modal, the signed-in account menu,
+    /// then the Home-anchored model picker with its trailing
+    /// connect-more row.
     pub(in crate::widget_host) fn paint_home_overlays(
         &mut self,
         frame: &mut NativeFrameBackend<'_>,
@@ -70,7 +79,37 @@ impl WidgetHostNative {
         }
         self.paint_agent_settings_modal_overlay(frame, viewport_width, viewport_height);
         self.paint_login_modal_overlay(frame, viewport_width, viewport_height);
+        self.paint_account_menu_overlay(frame, viewport_width, viewport_height);
         self.paint_home_model_picker(frame, viewport_width, viewport_height);
+    }
+
+    /// The signed-in account dropdown. Home paints it for the same
+    /// reason it paints the sign-in modal: its avatar opens one of the
+    /// two, and a takeover that draws only the signed-OUT half leaves a
+    /// signed-in user clicking an avatar that does nothing.
+    pub(in crate::widget_host) fn paint_account_menu_overlay(
+        &self,
+        frame: &mut NativeFrameBackend<'_>,
+        viewport_width: f32,
+        _viewport_height: f32,
+    ) {
+        let ui = &self.editor_state.editor_ui;
+        if !ui.account_ui_available || !ui.account_menu_open {
+            return;
+        }
+        use op_editor_ui::widgets::account_menu::AccountMenu;
+        let Some(menu) = AccountMenu::for_editor_ui(ui) else {
+            return;
+        };
+        let menu_rect = op_editor_ui::widgets::touch_overlay_geometry::account_menu_rect(
+            &self.editor_state,
+            &menu,
+            viewport_width,
+        );
+        let mut cx = op_editor_ui::widgets::PaintCx {
+            backend: &mut *frame,
+        };
+        menu.paint(&mut cx, menu_rect);
     }
 
     /// The sign-in modal: full-viewport scrim + centred card. Extracted
@@ -140,16 +179,13 @@ impl WidgetHostNative {
         if !self.editor_state.editor_ui.chat_model_picker.open {
             return;
         }
-        let Some((card, connect_row)) =
-            self.home_model_picker_geometry(viewport_width, viewport_height)
-        else {
+        let Some(card) = self.home_model_picker_geometry(viewport_width, viewport_height) else {
             return;
         };
         let ui = &self.editor_state.editor_ui;
         let models = &self.editor_state.chat.available_models;
         let selected = self.editor_state.chat.selected_model;
         let locale = ui.locale;
-        let connect_label = op_i18n::translate(locale, "home.connectMoreModels");
         let mut cx = PaintCx {
             backend: &mut *frame,
         };
@@ -164,7 +200,6 @@ impl WidgetHostNative {
             self.now_ms,
             locale,
         );
-        paint_connect_more_row(&mut cx, &self.theme, connect_row, connect_label, false);
     }
 
     /// Resolve the Home-anchored picker rects from the live layout.
@@ -172,7 +207,7 @@ impl WidgetHostNative {
         &self,
         viewport_width: f32,
         viewport_height: f32,
-    ) -> Option<(Rect, Rect)> {
+    ) -> Option<Rect> {
         let surface = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
         let layout = surface.layout(viewport_width, viewport_height);
         let search = self
@@ -199,21 +234,11 @@ impl WidgetHostNative {
         viewport_height: f32,
     ) -> Option<bool> {
         let point = Point2D::new(x, y);
-        let Some((card, connect_row)) =
-            self.home_model_picker_geometry(viewport_width, viewport_height)
-        else {
+        let Some(card) = self.home_model_picker_geometry(viewport_width, viewport_height) else {
             self.editor_state.editor_ui.close_chat_model_picker();
             self.mark_dirty();
             return Some(true);
         };
-        if connect_row.contains(point) {
-            let ui = &mut self.editor_state.editor_ui;
-            ui.close_chat_model_picker();
-            ui.agent_settings_open = true;
-            ui.agent_settings.tab = op_editor_core::AgentSettingsTab::Agents;
-            self.mark_dirty();
-            return Some(true);
-        }
         let search = self
             .editor_state
             .editor_ui
@@ -269,9 +294,7 @@ impl WidgetHostNative {
             return None;
         }
         let point = Point2D::new(x, y);
-        let Some((card, connect_row)) =
-            self.home_model_picker_geometry(viewport_width, viewport_height)
-        else {
+        let Some(card) = self.home_model_picker_geometry(viewport_width, viewport_height) else {
             return Some(true);
         };
         let search = self
@@ -294,9 +317,10 @@ impl WidgetHostNative {
             _ => None,
         };
         picker.hover = hover;
-        if matches!(hit, SelectHit::Outside) && !connect_row.contains(point) {
-            self.editor_state.editor_ui.close_chat_model_picker();
-        }
+        // Hover must NOT dismiss. This popover is opened by a click and
+        // closes on a click outside (the press path below); closing it
+        // on mouse-out meant the cursor could not reach its own footer
+        // row without the card vanishing on the way.
         self.mark_dirty();
         Some(true)
     }
@@ -315,8 +339,7 @@ impl WidgetHostNative {
             return None;
         }
         let point = Point2D::new(x, y);
-        let (card, _connect_row) =
-            self.home_model_picker_geometry(viewport_width, viewport_height)?;
+        let card = self.home_model_picker_geometry(viewport_width, viewport_height)?;
         if !card.contains(point) {
             return None;
         }

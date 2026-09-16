@@ -52,12 +52,19 @@ pub fn model_chip_width(label: &str) -> f32 {
 /// The picker card anchored above the submit row's model button plus
 /// the trailing connect-more row under it. `None` when the button is
 /// not laid out (zero-width) or the viewport cannot hold the card.
+/// The Home-anchored model picker's card.
+///
+/// It used to return a second rect for an external 接入更多模型 row
+/// painted BELOW the card. The picker carries that action as its own
+/// footer now, so the external row was the same thing twice — and
+/// because it sat outside the card, crossing the gap to reach it read as
+/// leaving the popover.
 pub fn home_model_picker_rects(
     layout: &HomeLayout,
     viewport_w: f32,
     models: &[ModelEntry],
     search: &str,
-) -> Option<(Rect, Rect)> {
+) -> Option<Rect> {
     let chip = layout.model_chip;
     if chip.size.x <= 0.0 {
         return None;
@@ -67,14 +74,7 @@ pub fn home_model_picker_rects(
     let top = (bottom - height).max(8.0);
     let x = (chip.origin.x + chip.size.x / 2.0 - HOME_MODEL_PICKER_W / 2.0)
         .clamp(8.0, (viewport_w - HOME_MODEL_PICKER_W - 8.0).max(8.0));
-    let card = Rect::xywh(x, top, HOME_MODEL_PICKER_W, height);
-    let connect_row = Rect::xywh(
-        x,
-        card.origin.y + card.size.y + CONNECT_MORE_ROW_GAP,
-        HOME_MODEL_PICKER_W,
-        CONNECT_MORE_ROW_H,
-    );
-    Some((card, connect_row))
+    Some(Rect::xywh(x, top, HOME_MODEL_PICKER_W, height))
 }
 
 /// Paint the model button: a 38 px outline pill with the green status

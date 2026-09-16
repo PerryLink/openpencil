@@ -136,7 +136,7 @@ fn picking_a_row_from_the_home_picker_selects_that_model() {
     let mut host = host_with_usable_agent();
     let chip = chip_center(&host);
     assert!(host.apply_press(chip.x, chip.y, W, H));
-    let (card, _connect_row) = host
+    let card = host
         .home_model_picker_geometry(W, H)
         .expect("picker geometry resolves above the chip");
     // Second row of the single Claude Code group: search strip + pad +
@@ -169,21 +169,44 @@ fn pressing_outside_the_home_picker_closes_it_without_touching_home() {
 }
 
 #[test]
-fn the_home_picker_connect_row_opens_agent_settings_on_the_agents_tab() {
+fn the_home_picker_connect_row_lives_inside_the_card_now() {
+    // The action used to be an external row BELOW the card, which meant
+    // Home showed 接入更多模型 twice (the picker carries its own footer)
+    // and the cursor had to leave the popover to reach it.
     let mut host = host_with_usable_agent();
     let chip = chip_center(&host);
     assert!(host.apply_press(chip.x, chip.y, W, H));
-    let (_card, connect_row) = host
+    let card = host
         .home_model_picker_geometry(W, H)
         .expect("picker geometry resolves");
-    let point = center(connect_row);
-    assert!(host.apply_press(point.x, point.y, W, H));
-    assert!(host.editor_state().editor_ui.agent_settings_open);
-    assert_eq!(
-        host.editor_state().editor_ui.agent_settings.tab,
-        op_editor_core::AgentSettingsTab::Agents
-    );
+    // Nothing hangs below the card any more: a press just under it is
+    // an outside press and closes the picker.
+    let below = Point2D::new(card.origin.x + 24.0, card.origin.y + card.size.y + 20.0);
+    assert!(host.apply_press(below.x, below.y, W, H));
     assert!(!host.editor_state().editor_ui.chat_model_picker.open);
+    assert!(!host.editor_state().editor_ui.agent_settings_open);
+}
+
+/// Hover must never dismiss a click-opened popover: moving the cursor
+/// off the card used to close it, so its own footer row was unreachable.
+#[test]
+fn moving_the_cursor_off_the_home_picker_keeps_it_open() {
+    let mut host = host_with_usable_agent();
+    let chip = chip_center(&host);
+    assert!(host.apply_press(chip.x, chip.y, W, H));
+    let card = host.home_model_picker_geometry(W, H).expect("picker open");
+    assert!(host.editor_state().editor_ui.chat_model_picker.open);
+    for point in [
+        Point2D::new(card.origin.x - 40.0, card.origin.y + 20.0),
+        Point2D::new(card.origin.x + 24.0, card.origin.y + card.size.y + 30.0),
+        Point2D::new(W - 20.0, H - 20.0),
+    ] {
+        host.apply_cursor_move(point.x, point.y);
+        assert!(
+            host.editor_state().editor_ui.chat_model_picker.open,
+            "hover at {point:?} must not dismiss"
+        );
+    }
 }
 
 #[test]
@@ -217,4 +240,50 @@ fn home_and_top_bar_avatars_open_the_same_account_entry() {
         "signed out opens the login modal"
     );
     assert!(!host.editor_state().editor_ui.account_menu_open);
+}
+
+/// Home's avatar opens one of two things, and the takeover has to draw
+/// and route BOTH — a signed-in user clicking it got an account menu
+/// that existed in state and appeared nowhere.
+#[test]
+fn home_routes_the_signed_in_account_menu_as_well_as_the_sign_in_modal() {
+    let mut host = WidgetHostNative::new();
+    host.editor_state_mut().editor_ui.home.visible = true;
+    host.editor_state_mut().editor_ui.account_ui_available = true;
+    // Signed out: the avatar opens the sign-in modal, and Home owns the press.
+    assert!(host.open_account_entry());
+    assert!(host.editor_state().editor_ui.login_modal_open);
+    assert_eq!(
+        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0),
+        Some(true),
+        "the modal owns presses over the takeover"
+    );
+
+    // Signed in: the menu opens instead, and Home owns its presses too.
+    host.editor_state_mut().editor_ui.login_modal_open = false;
+    host.editor_state_mut().editor_ui.account_menu_open = true;
+    assert_eq!(
+        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0),
+        Some(true),
+        "an open account menu must not let presses fall through Home"
+    );
+}
+
+/// ...and the menu hangs off HOME's avatar, not the professional top
+/// bar's, which is a different place on the same window.
+#[test]
+fn the_account_menu_anchors_to_homes_own_avatar() {
+    let mut state = op_editor_core::EditorState::new();
+    state.editor_ui.account_ui_available = true;
+    let pro = op_editor_ui::widgets::touch_overlay_geometry::account_anchor(&state, 1440.0);
+    state.editor_ui.home.visible = true;
+    let home = op_editor_ui::widgets::touch_overlay_geometry::account_anchor(&state, 1440.0);
+    assert_ne!(
+        pro.origin.x, home.origin.x,
+        "different avatars, different anchors"
+    );
+    // The anchor sits in Home's top bar, left of its 打开文件 button.
+    assert!(home.size.x > 0.0 && home.size.y > 0.0);
+    assert!(home.origin.y < 60.0, "in the top bar: {home:?}");
+    assert!(home.origin.x < pro.origin.x, "left of the pro avatar");
 }
