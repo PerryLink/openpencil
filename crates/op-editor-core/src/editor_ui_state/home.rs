@@ -266,6 +266,10 @@ pub enum HomeHit {
     Recent(usize),
     /// The ＋ 新建空白画布 button.
     NewCanvas,
+    /// The top bar's account avatar. Home is where a first-run user
+    /// lands, so the way in to an account has to be reachable without
+    /// first going to the professional canvas to find it.
+    Account,
     /// The top bar's 打开文件 button.
     OpenFile,
     /// The top bar's 进入专业画布 button.

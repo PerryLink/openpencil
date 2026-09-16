@@ -199,3 +199,22 @@ fn home_hit_test_still_routes_the_sheet_under_the_new_chip() {
         "the input area keeps its caret-press hit"
     );
 }
+
+/// Both avatars — Home's and the professional TopBar's — must open the
+/// same thing, or a first-run user finds a way in on one screen and a
+/// different one on the other.
+#[test]
+fn home_and_top_bar_avatars_open_the_same_account_entry() {
+    let mut host = WidgetHostNative::new();
+    // Without the host's account gate neither entry does anything.
+    assert!(!host.open_account_entry());
+    assert!(!host.editor_state().editor_ui.login_modal_open);
+
+    host.editor_state_mut().editor_ui.account_ui_available = true;
+    assert!(host.open_account_entry());
+    assert!(
+        host.editor_state().editor_ui.login_modal_open,
+        "signed out opens the login modal"
+    );
+    assert!(!host.editor_state().editor_ui.account_menu_open);
+}

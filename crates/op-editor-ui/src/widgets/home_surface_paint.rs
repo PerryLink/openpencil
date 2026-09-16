@@ -222,6 +222,24 @@ fn paint_top_bar(
         13.0,
         palette.context,
     );
+    // The account avatar, painted through the professional TopBar's own
+    // painter so the two entry points cannot drift into different
+    // avatars. Home is a first-run surface: making the way in to an
+    // account reachable only from the professional canvas hid it behind
+    // the one screen a new user has no reason to open.
+    if surface.ui.account_ui_available {
+        let hovered = surface.state.hover == Some(HomeHit::Account);
+        let pressed = surface.state.pressed == Some(HomeHit::Account);
+        crate::widgets::top_bar_paint::paint_account_button(
+            cx,
+            &surface.theme,
+            &surface.ui.account,
+            layout.account.origin.x,
+            layout.account.origin.y + layout.account.size.y / 2.0,
+            hovered,
+            pressed,
+        );
+    }
     // The two 38 px outline buttons.
     for (button, hit, label, icon) in [
         (

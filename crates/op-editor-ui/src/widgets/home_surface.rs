@@ -226,6 +226,9 @@ impl<'a> HomeSurface<'a> {
         if layout.open_file.contains(point) {
             return Some(HomeHit::OpenFile);
         }
+        if self.ui.account_ui_available && layout.account.contains(point) {
+            return Some(HomeHit::Account);
+        }
         if self.state.more_open && layout.more_popover.contains(point) {
             for (index, rect) in layout.more_rows.iter().enumerate() {
                 if rect.contains(point) {

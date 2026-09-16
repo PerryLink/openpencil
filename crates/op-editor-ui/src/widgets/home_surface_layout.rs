@@ -93,6 +93,9 @@ pub const RECENT_CHIP_W: f32 = 132.0;
 pub struct HomeLayout {
     // Top bar (pinned; never scroll-translated)
     pub open_file: Rect,
+    /// The top bar's account avatar. Zero-sized when the host has not
+    /// enabled the account gate, so it cannot be hit or painted.
+    pub account: Rect,
     pub professional: Rect,
     // Page column
     pub welcome: Rect,
@@ -229,6 +232,15 @@ pub fn layout_for_scrolled(
         professional.origin.x - 10.0 - open_file_w,
         professional.origin.y,
         open_file_w,
+        38.0,
+    );
+    // The account avatar, left of 打开文件 and the same height as the
+    // buttons beside it. A square: it carries an avatar or an initial,
+    // never a label, so it reads as the account and not a third action.
+    let account = Rect::xywh(
+        open_file.origin.x - 12.0 - 38.0,
+        open_file.origin.y,
+        38.0,
         38.0,
     );
 
@@ -550,6 +562,7 @@ pub fn layout_for_scrolled(
 
     HomeLayout {
         open_file,
+        account,
         professional,
         welcome,
         welcome_sub,

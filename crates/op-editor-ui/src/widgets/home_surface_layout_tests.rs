@@ -281,3 +281,22 @@ fn the_stack_reports_scroll_when_the_viewport_is_short() {
     assert!(scrolled.recent.origin.y < unscrolled.recent.origin.y);
     assert!(scrolled.recent.origin.y + scrolled.recent.size.y <= 620.0);
 }
+
+/// Home is where a first-run user lands, so the account entry has to be
+/// here and not only on the professional canvas. It sits left of 打开文件
+/// as a square, clear of both buttons.
+#[test]
+fn the_top_bar_carries_the_account_entry_left_of_the_file_button() {
+    let layout = layout(1440.0, 900.0, HomeFamily::AppUi);
+    assert_close(layout.account.size.x, 38.0, 0.5);
+    assert_close(layout.account.size.y, 38.0, 0.5);
+    assert_eq!(layout.account.origin.y, layout.open_file.origin.y);
+    assert!(
+        layout.account.origin.x + layout.account.size.x < layout.open_file.origin.x,
+        "the avatar clears 打开文件: {:?} vs {:?}",
+        layout.account,
+        layout.open_file
+    );
+    assert!(layout.open_file.origin.x + layout.open_file.size.x < layout.professional.origin.x);
+    assert!(layout.account.origin.x > 0.0, "still on screen at 1440");
+}

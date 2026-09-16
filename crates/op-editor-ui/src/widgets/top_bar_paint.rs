@@ -612,7 +612,7 @@ fn paint_collaboration_chip(
 /// profile image with an initial-letter fallback when signed in. Shares the
 /// same hover/press ghost background as its icon-button siblings (Sun /
 /// Globe / Maximize) so it reads consistently in the chrome row.
-pub(super) fn paint_account_button(
+pub(crate) fn paint_account_button(
     cx: &mut PaintCx<'_>,
     theme: &Theme,
     account: &op_editor_core::AccountState,

@@ -171,6 +171,13 @@ impl WidgetHostNative {
                 self.editor_state.editor_ui.pending_file_action =
                     Some(op_editor_core::FileAction::New);
             }
+            HomeHit::Account => {
+                // Same two destinations the professional TopBar's avatar
+                // opens — signed in goes to the account menu, signed out
+                // to the login modal. Routed through one place so the two
+                // entry points cannot answer differently.
+                self.open_account_entry();
+            }
             HomeHit::OpenFile => {
                 self.editor_state.editor_ui.pending_file_action =
                     Some(op_editor_core::FileAction::Open);
@@ -219,6 +226,26 @@ impl WidgetHostNative {
         self.editor_state.editor_ui.home.hover = next;
         self.mark_dirty();
         Some(true)
+    }
+
+    /// Open the account entry: the menu when signed in, the login modal
+    /// when not. ONE answer for the two surfaces that offer it (the
+    /// professional TopBar's avatar and Home's), so a first-run user
+    /// cannot find a way in on one screen and a different one on the
+    /// other. Returns whether the host has an account gate at all.
+    pub(in crate::widget_host) fn open_account_entry(&mut self) -> bool {
+        if !self.editor_state.editor_ui.account_ui_available {
+            return false;
+        }
+        if self.editor_state.editor_ui.account.is_signed_in() {
+            self.editor_state.editor_ui.account_menu_open = true;
+            self.editor_state.editor_ui.account_menu_hover = None;
+        } else {
+            self.editor_state.editor_ui.login_modal_open = true;
+            self.editor_state.editor_ui.login_modal_hover = None;
+        }
+        self.mark_dirty();
+        true
     }
 
     pub(in crate::widget_host) fn queue_home_send(&mut self) -> bool {
