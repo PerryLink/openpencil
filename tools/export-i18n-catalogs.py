@@ -14,7 +14,12 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 I18N_DIR = REPO_ROOT / "crates" / "op-i18n" / "src" / "i18n"
 LOCALE_FILE = I18N_DIR.parent / "locale.rs"
-EXPECTED_KEY_COUNT = 1717
+# Mirrors the Rust-side assertion in
+# `crates/op-i18n/src/i18n/catalog_integrity_tests.rs` ("update the
+# intentional catalog size"). The two live apart, so adding keys means
+# bumping BOTH — the Studio entry surface bumped the Rust one and left
+# this at 1717, which only the WASM bundle job noticed.
+EXPECTED_KEY_COUNT = 1852
 TABLE_SUFFIXES = ("", "_git", "_panel", "_collab")
 
 # Module stem, Locale variant, and the exact value returned by Locale::code().
