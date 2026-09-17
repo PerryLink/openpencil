@@ -17,6 +17,7 @@ use agent::query::QueryEngine;
 use agent::stream::Event;
 use futures::channel::mpsc;
 use futures::StreamExt;
+use op_chat_agent::backoff::{send_with_backoff, BUILTIN_HTTP_MAX_RETRIES};
 use op_host_services::chat_builtin_http::apply_reasoning_wire_control;
 use op_orchestrator::{CallRequest, LlmChunk, LlmClient, LlmError};
 
@@ -261,17 +262,30 @@ impl LlmClient for DirectOpenAiClient {
             // lines while it works, so a stuck generation never goes idle
             // (web-05 sat 32 min in Planning on 2026-09-08). Cap the whole
             // call; the orchestrator's retry loop takes it from there.
+            let max_retries = smoke_http_max_retries();
             let total_budget = total_call_budget(
                 op_orchestrator::resolve_model_profile(&model).timeout_multiplier,
-            );
+            ) + retry_ladder_budget(max_retries);
+            // Rate limits are a transport concern, not a model verdict: a
+            // shared-pool provider (OpenRouter's stealth channel, measured
+            // 2026-09-17) answers 429 on most subtasks of a 12-task suite, and
+            // `op_orchestrator::retry::is_non_retryable` deliberately stops the
+            // subtask ladder on `http 429` — so without a ladder HERE the run
+            // reads as a model that produced nothing. `send_with_backoff` is
+            // production's own ladder (same throttle, same adaptive gap, same
+            // Retry-After handling); the harness differs only in that the
+            // provider's error body stays reachable via the opt-in
+            // `OPENPENCIL_DEBUG_HTTP_ERROR_BODY` file.
             let call = async {
-                let resp = client
-                    .post(&url)
-                    .bearer_auth(&key)
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|e| format!("POST {url}: {e}"))?;
+                let resp = send_with_backoff(
+                    "smoke direct",
+                    &url,
+                    max_retries,
+                    op_chat_agent::backoff::builtin_http_min_gap(),
+                    || client.post(&url).bearer_auth(&key).json(&body),
+                )
+                .await
+                .map_err(|e| e.to_string())?;
                 let status = resp.status();
                 let text = resp.text().await.unwrap_or_default();
                 Ok::<_, String>((status, text))
@@ -331,6 +345,27 @@ impl LlmClient for DirectOpenAiClient {
     }
 }
 
+/// Retries the harness's direct provider POST rides out before giving up.
+///
+/// Defaults to production's ladder ([`BUILTIN_HTTP_MAX_RETRIES`]); a batch
+/// against a heavily shared free pool raises it with
+/// `OPENPENCIL_SMOKE_HTTP_MAX_RETRIES`.
+fn smoke_http_max_retries() -> u32 {
+    std::env::var("OPENPENCIL_SMOKE_HTTP_MAX_RETRIES")
+        .ok()
+        .and_then(|raw| raw.trim().parse::<u32>().ok())
+        .unwrap_or(BUILTIN_HTTP_MAX_RETRIES)
+}
+
+/// Head-room the whole-call deadline needs for the retry ladder's own sleeps.
+///
+/// Without it the ladder eats the generation budget: `RETRY_AFTER_MAX` caps one
+/// wait at 30 s, so `max_retries` waits are the worst case the deadline has to
+/// absorb before the last attempt even dials.
+fn retry_ladder_budget(max_retries: u32) -> std::time::Duration {
+    std::time::Duration::from_secs(30 * u64::from(max_retries))
+}
+
 /// Whole-call budget for the non-streaming provider path: 15 min scaled by
 /// the model profile's timeout multiplier, or `OPENPENCIL_SMOKE_LLM_TOTAL_BUDGET_SECS`
 /// when set (the harness tests use it to make the deadline observable).
@@ -349,6 +384,14 @@ fn total_call_budget(timeout_multiplier: f64) -> std::time::Duration {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn retry_ladder_budget_covers_the_worst_case_waits() {
+        // RETRY_AFTER_MAX (30 s) per retry — the deadline must outlast the
+        // ladder, or the last attempt never dials.
+        assert_eq!(retry_ladder_budget(0).as_secs(), 0);
+        assert_eq!(retry_ladder_budget(5).as_secs(), 150);
+    }
 
     #[test]
     fn total_call_budget_scales_with_the_profile_multiplier() {

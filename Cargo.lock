@@ -4958,6 +4958,7 @@ dependencies = [
  "jian-ops-schema",
  "op-ai",
  "op-ai-skills",
+ "op-chat-agent",
  "op-editor-core",
  "op-host-services",
  "op-image-enrich",
