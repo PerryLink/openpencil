@@ -48,6 +48,17 @@
 - 🎨 **赋能 AI 原生矢量设计：** 适用于提示词生成设计、画布内容修改、多模型协同、图片生成及设计方案迭代，让 AI Agent 更高效地完成从创意到成稿的全过程。
 - 🎁 **OpenPencil 用户专属福利：** 通过 [专属推广链接](https://www.infistar.cc/register?aff=LLZC3RLG&ref_source=link) 注册并完成首次调用，即可领取 **5 美元等值测试额度 / 首充专属优惠**！
 
+<a href="https://fluxionai.world/register?source=github&amp;campaign=github-openpencil&amp;promo=OPENPENCIL" title="Fluxion AI">
+  <img src="./screenshot/fluxion-ai-sponsor-banner.png" alt="Fluxion AI — reliable, cost-efficient access to GPT, Claude, and other leading AI models through one unified API" width="100%" />
+</a>
+
+### [OpenPencil × Fluxion AI | One unified API for GPT, Claude, and more](https://fluxionai.world/register?source=github&campaign=github-openpencil&promo=OPENPENCIL)
+
+Thanks to [Fluxion AI](https://fluxionai.world/register?source=github&campaign=github-openpencil&promo=OPENPENCIL) for sponsoring OpenPencil!
+
+- ⚡ **Reliable, cost-efficient access:** GPT, Claude, and other leading AI models through one unified API — save up to 70% compared with official API pricing.
+- 🎁 **OpenPencil user bonus:** get **$1 in API credits** when you [sign up through this link](https://fluxionai.world/register?source=github&campaign=github-openpencil&promo=OPENPENCIL).
+
 <table>
 <tr>
 <td width="50%">
