@@ -122,7 +122,7 @@ fn chat_model_row_wins_over_variables_panel_and_preset_menu() {
 }
 
 #[test]
-fn right_press_on_model_picker_does_not_open_covered_layer_context_menu() {
+fn right_press_on_model_picker_does_not_open_layer_context_menu() {
     let mut host = WidgetHost::new();
     seed_layer_for_context_menu(&mut host);
     seed_two_chat_models(&mut host);
@@ -219,6 +219,30 @@ fn the_composer_card_header_opens_the_agent_tab_and_closes_the_model_picker() {
         "the glyphs' one meaning is: the conversation lives in the Agent tab"
     );
     assert!(!host.editor_state.editor_ui.chat_model_picker.open);
+}
+
+#[test]
+fn header_press_closes_model_picker_without_minimizing_pinned_chat() {
+    let mut host = WidgetHost::new();
+    host.editor_state.editor_ui.enter_chat_tab();
+    seed_two_chat_models(&mut host);
+    host.editor_state.editor_ui.chat_model_picker.open = true;
+    host.editor_state
+        .editor_ui
+        .chat_model_picker_input
+        .set_text("gpt");
+    let chat = host.ai_chat_rect(1200.0, 800.0).unwrap();
+
+    assert!(host.apply_press(chat.origin.x + 25.0, chat.origin.y + 18.0, 1200.0, 800.0,));
+
+    assert!(!host.editor_state.chat.is_minimized());
+    assert!(!host.editor_state.editor_ui.chat_model_picker.open);
+    assert!(host
+        .editor_state
+        .editor_ui
+        .chat_model_picker_input
+        .text()
+        .is_empty());
 }
 
 #[test]

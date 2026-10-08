@@ -120,6 +120,14 @@ fn serve_web(prog: &str, args: impl Iterator<Item = String>) -> Option<i32> {
             return Some(2);
         }
     };
+    // Select the supervisor-owned store before settings or user
+    // templates can initialize the process-global default store.
+    if let Some(root) = options.config_root.as_ref() {
+        if let Err(e) = op_config_store::configure_user_root(root) {
+            eprintln!("{prog} --serve-web: could not initialize private config root: {e}");
+            return Some(1);
+        }
+    }
     // The online daemon is multi-tenant and must not install host-user
     // material into a process-global registry. Its MCP profile also
     // refuses user-template tools; local and managed daemons load the

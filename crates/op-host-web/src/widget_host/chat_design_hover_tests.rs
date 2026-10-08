@@ -263,7 +263,7 @@ fn entering_chat_clears_stale_higher_and_lower_hover_in_one_move() {
 }
 
 #[test]
-fn regular_chat_wins_when_overlapping_variables_panel() {
+fn composer_card_wins_when_overlapping_tall_variables_panel() {
     let mut host = WidgetHost::new();
     let (viewport_w, viewport_h) = (1440.0, 900.0);
     host.last_viewport_w = viewport_w;

@@ -49,6 +49,25 @@ fn the_composer_card_header_pins_the_chat_into_the_agent_rail() {
 }
 
 #[test]
+fn maximizing_pinned_chat_keeps_its_column_geometry() {
+    let mut host = WidgetHost::new();
+    host.editor_state.editor_ui.enter_chat_tab();
+    let before = host
+        .ai_chat_rect(1200.0, 800.0)
+        .expect("pinned chat visible");
+    host.editor_state.chat.maximized = true;
+    let after = host
+        .ai_chat_rect(1200.0, 800.0)
+        .expect("pinned chat still visible");
+    assert_eq!(
+        after, before,
+        "the retired floating maximize flag cannot move the rail"
+    );
+    assert_eq!(after.origin.x, 0.0);
+    assert_eq!(after.size.x, host.editor_state.editor_ui.layer_panel_width);
+}
+
+#[test]
 fn vscode_embed_has_no_chat_rect() {
     let mut host = WidgetHost::new();
     host.editor_state.editor_ui.embed = op_editor_core::EmbedHost::VsCode;
