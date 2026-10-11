@@ -295,7 +295,12 @@ impl WidgetHostNative {
         if self.editor_state.editor_ui.home_composer_owns_keyboard() {
             let home =
                 op_editor_ui::widgets::HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
-            return Some(home.focused_input_caret_rect(viewport_w, viewport_h));
+            return Some(
+                self.home_input_geometry
+                    .as_ref()
+                    .and_then(|geometry| geometry.caret_rect(&home, viewport_w, viewport_h))
+                    .unwrap_or_else(|| home.focused_input_caret_rect(viewport_w, viewport_h)),
+            );
         }
         if self.editor_state.editor_ui.home.visible
             && self.editor_state.editor_ui.agent_settings_open

@@ -160,7 +160,16 @@ impl WidgetHost {
     /// Caret anchor for the browser IME candidate window.
     pub(in crate::widget_host) fn home_ime_anchor_rect(&self) -> Option<Rect> {
         let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
-        Some(home.focused_input_caret_rect(self.last_viewport_w, self.last_viewport_h))
+        Some(
+            self.home_input_geometry
+                .as_ref()
+                .and_then(|geometry| {
+                    geometry.caret_rect(&home, self.last_viewport_w, self.last_viewport_h)
+                })
+                .unwrap_or_else(|| {
+                    home.focused_input_caret_rect(self.last_viewport_w, self.last_viewport_h)
+                }),
+        )
     }
 
     /// Wheel while Home is up: the settings modal and the model picker
@@ -410,6 +419,8 @@ impl WidgetHost {
                 backend: &mut *backend,
             };
             home.paint(&mut cx, viewport);
+            self.home_input_geometry =
+                Some(home.measure_input_geometry(backend, viewport_width, viewport_height));
         }
         if self.editor_state.editor_ui.chat_model_picker.open {
             if let Some(card) = self.home_model_picker_geometry(viewport_width, viewport_height) {

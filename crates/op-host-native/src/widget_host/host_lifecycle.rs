@@ -50,6 +50,7 @@ impl WidgetHostNative {
             chat_input_selection_drag: None,
             image_input_selection_drag: None,
             image_input_geometry: None,
+            home_input_geometry: None,
             chat_text_selection_drag: None,
             text_edit_selection_drag: None,
             text_measure: std::cell::RefCell::new(None),

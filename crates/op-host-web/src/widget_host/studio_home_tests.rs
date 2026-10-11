@@ -45,6 +45,29 @@ fn type_brief(host: &mut WidgetHost, text: &str) {
     }
 }
 
+#[test]
+fn clicking_a_home_prompt_line_inserts_at_that_line_instead_of_the_end() {
+    let mut host = home_host();
+    host.editor_state
+        .editor_ui
+        .home
+        .set_draft("第一行\n第二行\n第三行");
+    let input = home_layout(&host).input_box;
+    let point = Point2D::new(input.origin.x + 14.0, input.origin.y + 13.0 + 18.9 + 3.0);
+    assert_eq!(host.press_home(point.x, point.y, W, H), Some(true));
+    assert_eq!(
+        host.editor_state.editor_ui.home.input.caret(),
+        "第一行\n".len()
+    );
+    assert!(host.apply_paste_text("新增"));
+    assert_eq!(
+        host.editor_state.editor_ui.home.draft,
+        "第一行\n新增第二行\n第三行"
+    );
+    let anchor = host.home_ime_anchor_rect().unwrap();
+    assert!((anchor.origin.y - (input.origin.y + 13.0 + 18.9)).abs() < 0.01);
+}
+
 /// Put real work on the page: the slide-deck template's boards.
 fn page_with_work(host: &mut WidgetHost) {
     let source = scene_template_document("slide-deck").expect("embedded on native");

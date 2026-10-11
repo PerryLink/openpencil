@@ -14,12 +14,10 @@ use super::{art_phase, enter_phase};
 use crate::widgets::icons::{draw_icon, Icon};
 use crate::widgets::PaintCx;
 use crate::{Color, Point2D, Rect};
-use jian_widgets::components::text_area::TextArea;
 use jian_widgets::{Painter, Tokens};
 use op_editor_core::{HomeFamily, HomeHit};
 
 const SANS: &str = "system-ui";
-const INPUT_FONT: f32 = 14.0;
 
 pub(super) fn paint_home_compact(surface: &HomeSurface<'_>, cx: &mut PaintCx<'_>, rect: Rect) {
     let layout = surface.layout(rect.size.x, rect.size.y);
@@ -398,33 +396,17 @@ fn paint_composer(
         },
         1.0,
     );
-    let text_rect = Rect::xywh(
-        input_box.origin.x + 1.0,
-        input_box.origin.y + 7.0,
-        input_box.size.x - 2.0,
-        input_box.size.y - 14.0,
-    );
-    let text_area = TextArea {
-        state: &surface.state.input,
-        placeholder: task_copy.placeholder,
-        // Phones dismiss the software keyboard when the composer blurs, so
-        // the caret must go with it. Desktop Home keeps the surface-level
-        // reading (it IS the composer) in `home_surface_paint_panels.rs`.
-        focused: surface.state.composer_focused,
-        font_size: INPUT_FONT,
-        now_ms: surface.now_ms,
-        pad_x: 10.0,
-        max_visible_lines: 4,
-    };
+    let text_rect = surface.input_text_rect(input_box);
+    let text_area = surface.input_text_area(task_copy.placeholder, input_box);
     let mut backend = crate::widgets::text_input_backend::BaselineAdjustingBackend {
         inner: cx.backend,
         baseline_delta_y: 12.0,
     };
     backend.save();
-    backend.clip_round_rect(input_box, 10.0);
+    backend.clip_rect(surface.input_clip_rect(input_box));
     text_area.paint(&mut backend, text_rect, &studio_tokens(palette));
     backend.restore();
-    super::panels::paint_attachment_chips(cx, &surface.attachment_names, input_box, palette);
+    super::super::references::paint(surface, cx, input_box, palette);
 
     // The inline replace-confirm strip rides above the input's bottom.
     if surface.state.replace_pending {

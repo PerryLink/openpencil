@@ -36,7 +36,13 @@ pub(crate) fn chip_rects(surface: &HomeSurface<'_>, input_box: Rect) -> Option<(
         0.0
     };
     let w = PAD + dots_w + copy::estimate_text_w(&label, FONT) + PAD + CLOSE + 4.0;
-    let w = w.min(input_box.size.x * 0.6);
+    let max_w = if surface.attachment_names.is_empty() {
+        input_box.size.x * 0.6
+    } else {
+        // Share a bounded material row with photo references.
+        (input_box.size.x - 20.0).max(0.0) * 0.6
+    };
+    let w = w.min(max_w);
     let chip = Rect::xywh(
         input_box.origin.x + input_box.size.x - 10.0 - w,
         input_box.origin.y + input_box.size.y - CHIP_H - 6.0,
@@ -126,7 +132,12 @@ pub(crate) fn paint_brand_chip(
     } else {
         fade(palette.ink, 0.8)
     };
-    let label = chip_label(surface);
+    let label = crate::widgets::text_metrics::fit_chrome(
+        cx.backend,
+        &chip_label(surface),
+        (close.origin.x - 4.0 - x).max(0.0),
+        FONT,
+    );
     let layout = crate::TextLayout::single_run(&label, SANS, FONT, ink.to_jian(), Point2D::ZERO);
     cx.backend.save();
     cx.backend.clip_rect(Rect::xywh(

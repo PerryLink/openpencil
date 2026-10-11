@@ -311,6 +311,8 @@ pub struct WidgetHost {
     chat_input_selection_drag: Option<ChatInputSelectionDragState>,
     /// Active Search / Generate popover input selection drag.
     image_input_selection_drag: Option<image_panel_selection::ImageInputSelectionDragState>,
+    /// Home prompt geometry measured with the real text painter.
+    home_input_geometry: Option<op_editor_ui::widgets::home_surface::HomeInputGeometry>,
     /// Latest Search / Generate input geometry measured by the real painter.
     image_input_geometry:
         Option<op_editor_ui::widgets::property_panel_image_assets::ImagePopoverInputGeometry>,

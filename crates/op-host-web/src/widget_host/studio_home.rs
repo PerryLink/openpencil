@@ -53,7 +53,17 @@ impl WidgetHost {
             return None;
         }
         let home = HomeSurface::for_editor_at(&self.editor_state, self.now_ms)?;
-        let hit = home.hit_test(viewport_width, viewport_height, Point2D::new(x, y));
+        let point = Point2D::new(x, y);
+        let hit = home.hit_test(viewport_width, viewport_height, point);
+        let input_offset = matches!(hit, Some(HomeHit::Sheet)).then(|| {
+            self.home_input_geometry
+                .as_ref()
+                .and_then(|geometry| {
+                    geometry.byte_offset_at(&home, viewport_width, viewport_height, point)
+                })
+                .or_else(|| home.input_offset_at(viewport_width, viewport_height, point))
+                .unwrap_or(home.state.input.caret())
+        });
         drop(home);
         let Some(hit) = hit else {
             // A press outside the 更多 popover closes it, like the
@@ -71,15 +81,15 @@ impl WidgetHost {
         if home.more_open && !matches!(hit, HomeHit::More | HomeHit::MoreItem(_)) {
             home.more_open = false;
         }
-        self.run_home_hit(hit);
+        self.run_home_hit(hit, input_offset);
         self.mark_dirty();
         Some(true)
     }
 
-    fn run_home_hit(&mut self, hit: HomeHit) {
+    fn run_home_hit(&mut self, hit: HomeHit, input_offset: Option<usize>) {
         match hit {
             HomeHit::Sheet => {
-                let caret = self.editor_state.editor_ui.home.input.text().len();
+                let caret = input_offset.unwrap_or(self.editor_state.editor_ui.home.input.caret());
                 self.editor_state
                     .editor_ui
                     .home

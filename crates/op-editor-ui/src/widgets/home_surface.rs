@@ -38,6 +38,12 @@ mod variants_toggle;
 #[path = "home_surface_brand.rs"]
 mod brand_chip;
 
+#[path = "home_surface_input.rs"]
+mod input;
+#[path = "home_surface_references.rs"]
+pub(crate) mod references;
+pub use input::HomeInputGeometry;
+
 #[path = "home_surface_layout.rs"]
 pub(crate) mod layout;
 
@@ -539,35 +545,6 @@ impl<'a> HomeSurface<'a> {
             }
         }
         None
-    }
-
-    /// The IME caret rect inside the composer's input box.
-    pub fn focused_input_caret_rect(&self, viewport_width: f32, viewport_height: f32) -> Rect {
-        let layout = self.layout(viewport_width, viewport_height);
-        let text = self.state.input.text();
-        let caret = jian_core::text_input::prev_char_boundary(
-            text,
-            self.state.input.caret().min(text.len()),
-        );
-        // Single-line estimate on the first wrapped row; the IME panel
-        // only needs a stable anchor near the caret.
-        let x = layout.input_box.origin.x
-            + 14.0
-            + (text[..caret].chars().count() as f32 * 8.0).min(layout.input_box.size.x - 16.0);
-        Rect::xywh(x, layout.input_box.origin.y + 13.0, 1.5, 20.0)
-    }
-
-    /// Map a press inside the input box to a caret byte offset
-    /// (single-line estimate, matching the caret anchor above).
-    pub fn input_offset_at(
-        &self,
-        viewport_width: f32,
-        viewport_height: f32,
-        point: Point2D,
-    ) -> Option<usize> {
-        let rect = self.layout(viewport_width, viewport_height).input_box;
-        rect.contains(point)
-            .then_some(self.state.input.text().len())
     }
 }
 

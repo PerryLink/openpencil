@@ -63,6 +63,8 @@ impl WidgetHostNative {
                     Rect::xywh(0.0, 0.0, viewport_width, viewport_height),
                 );
             }
+            self.home_input_geometry =
+                Some(home.measure_input_geometry(frame, viewport_width, viewport_height));
             // The overlays Home opens (settings modal, sign-in modal,
             // model picker) paint above the takeover — mirroring the
             // z-order `paint_topmost_overlays` gives them elsewhere.

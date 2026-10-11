@@ -38,6 +38,7 @@ impl WidgetHost {
             chat_input_selection_drag: None,
             image_input_selection_drag: None,
             image_input_geometry: None,
+            home_input_geometry: None,
             chat_text_selection_drag: None,
             create_drag: None,
             path_anchor_drag: None,

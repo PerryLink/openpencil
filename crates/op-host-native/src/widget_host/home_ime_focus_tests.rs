@@ -21,6 +21,79 @@ const WIDE_H: f32 = 900.0;
 const COVERED_H: f32 = 640.0;
 
 #[test]
+fn home_prompt_click_and_ime_use_the_real_painted_multiline_geometry() {
+    for (compact, width, height) in [(false, WIDE_W, WIDE_H), (true, W, H), (true, 320.0, H)] {
+        let mut host = if compact {
+            touch_compact_home()
+        } else {
+            desktop_home()
+        };
+        host.now_ms = 2_000;
+        let home = &mut host.editor_state_mut().editor_ui.home;
+        home.shown_at_ms = 1;
+        home.composer_focused = false;
+        home.set_draft("Wi宽🙂第一行\n第二行\n结尾");
+        let original_caret = home.input.caret();
+        let input = home_layout(&host, width, height).input_box;
+        let mut backend = crate::backend::NativeBackend::with_dpi(1.0);
+        let w_advance = backend.measure_text_family("W", 14.0, "Inter");
+        let mut surface =
+            skia_safe::surfaces::raster_n32_premul((width as i32, height as i32)).unwrap();
+        let mut frame = crate::backend::NativeFrameBackend::new(&mut backend, surface.canvas());
+        host.paint(&mut frame, width, height);
+        assert!(host.home_input_geometry.is_some());
+        if compact {
+            assert!(!host.editor_state().editor_ui.home.composer_focused);
+            assert!(!host.text_input_focus_active());
+        }
+        let text_top = input.origin.y + if compact { 11.0 } else { 13.0 };
+        let text_x = input.origin.x + if compact { 11.0 } else { 14.0 };
+        assert!(host.apply_press(text_x + w_advance + 0.1, text_top + 3.0, width, height));
+        if compact {
+            assert_eq!(
+                host.editor_state().editor_ui.home.input.caret(),
+                original_caret,
+                "touch down waits for release to distinguish a tap from a scroll"
+            );
+            assert!(!host.editor_state().editor_ui.home.composer_focused);
+        }
+        host.apply_release_with_viewport(width, height);
+        assert_eq!(host.editor_state().editor_ui.home.input.caret(), 1);
+        assert!(host.apply_input_paste("新增"));
+        assert_eq!(
+            host.editor_state().editor_ui.home.draft,
+            "W新增i宽🙂第一行\n第二行\n结尾"
+        );
+        let end = host.editor_state().editor_ui.home.input.text().len();
+        host.editor_state_mut().editor_ui.home.set_caret(end, 2_000);
+        host.paint(&mut frame, width, height);
+        let anchor = host.ime_anchor_rect(width, height).unwrap();
+        let focused_input = home_layout(&host, width, height).input_box;
+        let focused_text_top = focused_input.origin.y + if compact { 11.0 } else { 13.0 };
+        assert!((anchor.origin.y - (focused_text_top + 2.0 * 18.9)).abs() < 0.01);
+    }
+}
+
+#[test]
+fn dragging_from_a_home_prompt_scrolls_without_moving_the_caret_or_raising_the_keyboard() {
+    let mut host = touch_compact_home();
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .set_draft("第一行\n第二行\n第三行");
+    let caret = host.editor_state().editor_ui.home.input.caret();
+    let input = home_layout(&host, W, H).input_box;
+    let point = Point2D::new(input.origin.x + 14.0, input.origin.y + 13.0);
+    assert!(host.apply_press(point.x, point.y, W, H));
+    assert!(host.apply_cursor_move(point.x, point.y - 48.0));
+    host.apply_release_with_viewport(W, H);
+    assert_eq!(host.editor_state().editor_ui.home.input.caret(), caret);
+    assert!(!host.editor_state().editor_ui.home.composer_focused);
+    assert!(!host.text_input_focus_active());
+    assert!(host.editor_state().editor_ui.home.scroll_y > 0.0);
+}
+
+#[test]
 fn home_modal_keyboard_routes_selection_clipboard_and_ime_to_settings() {
     use op_editor_core::agent_settings::{BuiltinAgentField, SettingsFocus};
 

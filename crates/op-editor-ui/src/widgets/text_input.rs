@@ -241,7 +241,7 @@ pub fn single_line_caret_rect(
     SingleLinePaintGeometry::measure(state, rect, font_size, pad_x, &mut backend).caret_rect
 }
 
-struct MeasureOnlyBackend;
+pub(crate) struct MeasureOnlyBackend;
 
 impl RenderBackend for MeasureOnlyBackend {
     fn begin_frame(&mut self) {}

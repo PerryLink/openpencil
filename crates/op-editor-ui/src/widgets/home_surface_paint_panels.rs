@@ -11,13 +11,8 @@ use crate::widgets::brand_icons::paint_figma_logo;
 use crate::widgets::icons::{draw_icon, Icon};
 use crate::widgets::PaintCx;
 use crate::{Color, Point2D, Rect, RenderBackend};
-use jian_widgets::components::text_area::TextArea;
 use jian_widgets::Tokens;
 use op_editor_core::HomeHit;
-
-/// Input text metrics (prototype 14 px / 1.75 line-height; jian's text
-/// area uses 1.35 — the composer honors the component's own advance).
-const INPUT_FONT: f32 = 14.0;
 
 fn studio_tokens(palette: StudioPalette) -> Tokens {
     let mut tokens = Tokens::light();
@@ -135,23 +130,8 @@ pub(super) fn paint_composer(
         },
         1.0,
     );
-    // jian's TextArea pads y by 4 and x by its pad_x; shift the rect so
-    // the text lands at the prototype's 13/14 padding.
-    let text_rect = Rect::xywh(
-        input_box.origin.x + 1.0,
-        input_box.origin.y + 9.0,
-        input_box.size.x - 2.0,
-        input_box.size.y - 18.0,
-    );
-    let text_area = TextArea {
-        state: &surface.state.input,
-        placeholder: task_copy.placeholder,
-        focused: surface.state.visible,
-        font_size: INPUT_FONT,
-        now_ms: surface.now_ms,
-        pad_x: 13.0,
-        max_visible_lines: 8,
-    };
+    let text_rect = surface.input_text_rect(input_box);
+    let text_area = surface.input_text_area(task_copy.placeholder, input_box);
     // `draw_text` is baseline-relative but jian's TextArea positions glyph
     // runs from the line top, so every draw shifts down by the ascent —
     // the same wrapper the chat composer's input paints through.
@@ -160,12 +140,11 @@ pub(super) fn paint_composer(
         baseline_delta_y: 14.0,
     };
     backend.save();
-    backend.clip_round_rect(input_box, 10.0);
+    backend.clip_rect(surface.input_clip_rect(input_box));
     text_area.paint(&mut backend, text_rect, &studio_tokens(palette));
     backend.restore();
 
-    paint_attachment_chips(cx, &surface.attachment_names, input_box, palette);
-    super::super::brand_chip::paint_brand_chip(surface, cx, input_box, palette);
+    super::super::references::paint(surface, cx, input_box, palette);
 
     // The inline replace-confirm strip rides above the input's bottom.
     if surface.state.replace_pending {
@@ -627,66 +606,4 @@ fn paint_template_switched(
 
 fn fade_palette(palette: StudioPalette, factor: f32) -> StudioPalette {
     palette.faded(factor)
-}
-
-/// The staged attachment chips along the input box's bottom edge (the
-/// chat composer's `pending_attachments` list is the truth). Shared by
-/// the wide and the phone composer so a picked photo shows on both.
-pub(super) fn paint_attachment_chips(
-    cx: &mut PaintCx<'_>,
-    names: &[String],
-    input_box: Rect,
-    palette: StudioPalette,
-) {
-    if names.is_empty() {
-        return;
-    }
-    let chips_h = names.len().min(2) as f32 * 34.0 + 8.0;
-    let chips_area = Rect::xywh(
-        input_box.origin.x + 10.0,
-        input_box.origin.y + input_box.size.y - chips_h,
-        input_box.size.x - 20.0,
-        chips_h,
-    );
-    let mut chip_x = chips_area.origin.x;
-    for name in names.iter().take(3) {
-        let label = chip_label(name);
-        let chip_w = cx.backend.measure_text_family(&label, 11.0, SANS) + 26.0 + 34.0;
-        let chip = Rect::xywh(chip_x, chips_area.origin.y + 6.0, chip_w, 26.0);
-        cx.backend.fill_round_rect(chip, 6.0, palette.chip_bg);
-        cx.backend
-            .stroke_round_rect(chip, 6.0, palette.chip_line, 1.0);
-        cx.backend.fill_round_rect(
-            Rect::xywh(chip.origin.x + 4.0, chip.origin.y + 3.0, 20.0, 20.0),
-            3.0,
-            fade(palette.blue, 0.25),
-        );
-        text(
-            cx,
-            &label,
-            Point2D::new(
-                chip.origin.x + 30.0,
-                jian_widgets::centered_text_baseline_y(chip, 11.0),
-            ),
-            11.0,
-            fade(palette.ink, 0.75),
-        );
-        chip_x += chip_w + 6.0;
-    }
-}
-
-/// A chip's label: the file stem, cut to ten characters with an ellipsis
-/// (a bare eight-character cut read "photo.pn").
-fn chip_label(name: &str) -> String {
-    const MAX: usize = 10;
-    let stem = match name.rfind('.') {
-        Some(dot) if dot > 0 => &name[..dot],
-        _ => name,
-    };
-    if stem.chars().count() <= MAX {
-        return stem.to_string();
-    }
-    let mut cut: String = stem.chars().take(MAX - 1).collect();
-    cut.push('…');
-    cut
 }

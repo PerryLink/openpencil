@@ -23,6 +23,9 @@ mod spacing;
 #[path = "studio_shots_parts/app_pages.rs"]
 mod app_pages;
 
+#[path = "studio_shots_parts/composer.rs"]
+mod composer;
+
 #[path = "studio_shots_parts/novice.rs"]
 mod novice;
 
@@ -529,6 +532,10 @@ fn main() {
     }
     if filter == "spacing" {
         spacing::run(&out_dir);
+        return;
+    }
+    if filter == "composer" {
+        composer::run(&out_dir);
         return;
     }
     for (name, w, h, build) in all_scenarios() {
