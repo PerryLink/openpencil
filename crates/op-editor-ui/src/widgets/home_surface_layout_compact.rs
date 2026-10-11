@@ -332,6 +332,7 @@ pub(super) fn compact_layout_for_scrolled(
     let (connect_card, connect_rows) = connect_card_rects(composer);
 
     HomeLayout {
+        viewport: Rect::xywh(0.0, 0.0, width, height),
         open_file,
         account,
         professional,

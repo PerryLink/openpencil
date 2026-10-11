@@ -54,7 +54,7 @@ impl WidgetHostNative {
         viewport_width: f32,
         viewport_height: f32,
     ) -> bool {
-        if !self.home_visible() {
+        if !self.home_visible() || self.editor_state.editor_ui.home.references_open {
             return false;
         }
         // The top bar (and, on the phone, the bottom nav) stays pinned;

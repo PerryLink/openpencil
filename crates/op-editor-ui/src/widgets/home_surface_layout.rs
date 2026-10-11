@@ -91,6 +91,8 @@ pub const RECENT_CHIP_W: f32 = 260.0;
 /// scroll-translated). Zero-sized rects mark absent targets.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HomeLayout {
+    /// Unscrolled bounds for modal overlays.
+    pub viewport: Rect,
     // Top bar (pinned; never scroll-translated)
     pub open_file: Rect,
     /// The top bar's account avatar. Zero-sized when the host has not
@@ -641,6 +643,7 @@ pub(crate) fn wide_layout_for_scrolled(
     let (connect_card, connect_rows) = connect_card_rects(composer);
 
     let mut layout = HomeLayout {
+        viewport: Rect::xywh(0.0, 0.0, width, viewport_height),
         open_file,
         account,
         professional,

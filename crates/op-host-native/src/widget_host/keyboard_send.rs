@@ -16,6 +16,7 @@ impl WidgetHostNative {
                 // Fall through to the settings handling below.
             } else if self.editor_state.editor_ui.chat_model_picker.open
                 || self.editor_state.editor_ui.login_modal_open
+                || self.editor_state.editor_ui.home.references_open
             {
                 return true;
             } else {

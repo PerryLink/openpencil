@@ -153,7 +153,20 @@ impl WidgetHostNative {
             // The press may have closed the surface (专业画布, a recent
             // file) — keep the focus only while Home is still up.
             if home.visible {
-                home.key_focus = Some(focus);
+                home.key_focus = Some(match focus {
+                    HomeHit::References
+                    | HomeHit::ReferenceRemove(_)
+                    | HomeHit::ReferencesClose => {
+                        if home.references_open {
+                            HomeHit::ReferencesClose
+                        } else if self.editor_state.chat.pending_attachments.is_empty() {
+                            HomeHit::Attachment
+                        } else {
+                            HomeHit::References
+                        }
+                    }
+                    _ => focus,
+                });
             }
         } else {
             let Some(focus) = self.editor_state.editor_ui.workspace.key_focus else {

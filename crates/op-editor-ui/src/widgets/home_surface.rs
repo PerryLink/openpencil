@@ -40,6 +40,8 @@ mod brand_chip;
 
 #[path = "home_surface_input.rs"]
 mod input;
+#[path = "home_surface_reference_manager.rs"]
+mod reference_manager;
 #[path = "home_surface_references.rs"]
 pub(crate) mod references;
 pub use input::HomeInputGeometry;
@@ -412,6 +414,9 @@ impl<'a> HomeSurface<'a> {
         if self.state.connect_card_open {
             return Some(connect::connect_card_hit(layout, point).unwrap_or(HomeHit::ConnectClose));
         }
+        if self.state.references_open {
+            return Some(reference_manager::hit(self, layout.viewport, point));
+        }
         // A touch tablet grows the desktop-sized targets to 44 pt.
         let tablet = tablet::is_touch_tablet(self.ui);
         let hits = |rect: Rect| tablet::hits(tablet, rect, point);
@@ -516,6 +521,9 @@ impl<'a> HomeSurface<'a> {
                 return Some(HomeHit::BrandClear);
             }
         }
+        if references::manage_rect(self, layout.input_box).is_some_and(|r| r.contains(point)) {
+            return Some(HomeHit::References);
+        }
         if layout.input_box.contains(point) {
             return Some(HomeHit::Sheet);
         }
@@ -582,6 +590,9 @@ mod paint;
 impl HomeSurface<'_> {
     fn paint_home(&self, cx: &mut PaintCx<'_>, rect: Rect) {
         paint::paint_home(self, cx, rect);
+        if self.state.references_open {
+            reference_manager::paint(self, cx, &self.layout(rect.size.x, rect.size.y));
+        }
     }
 }
 

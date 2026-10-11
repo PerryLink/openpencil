@@ -54,6 +54,9 @@ impl WidgetHost {
     /// The Send press (button or Enter on the example): one entry that
     /// reads the same [`HomeSendMode`] the button paints.
     pub(in crate::widget_host) fn home_send(&mut self) -> bool {
+        if self.editor_state.editor_ui.home.references_open {
+            return false;
+        }
         let (mode, example) = {
             let Some(home) = HomeSurface::for_editor_at(&self.editor_state, self.now_ms) else {
                 return false;
@@ -85,6 +88,9 @@ impl WidgetHost {
     }
 
     fn queue_home_send_with(&mut self, discard_confirmed: bool) -> bool {
+        if self.editor_state.editor_ui.home.references_open {
+            return false;
+        }
         let Some(prompt) = self.editor_state.editor_ui.home.generation_prompt() else {
             return false;
         };

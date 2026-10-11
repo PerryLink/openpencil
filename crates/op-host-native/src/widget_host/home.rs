@@ -5,6 +5,10 @@ use op_editor_core::{HomeDevice, HomeFamily, HomeHit, InfoKind, SlideRatio};
 use op_editor_ui::widgets::HomeSurface;
 use op_editor_ui::{Point2D, Rect};
 
+#[cfg(test)]
+#[path = "home_references_tests.rs"]
+mod reference_tests;
+
 /// The keyboard-safe gap kept under the composer's input box while the
 /// software keyboard is up (the same margin the agent-settings reveal
 /// uses).
@@ -120,6 +124,9 @@ impl WidgetHostNative {
             self.editor_state.editor_ui.home.more_open = false;
         }
         match hit {
+            HomeHit::References | HomeHit::ReferenceRemove(_) | HomeHit::ReferencesClose => {
+                self.editor_state.apply_home_reference_action(hit);
+            }
             HomeHit::Sheet => {
                 let caret = input_offset.unwrap_or(self.editor_state.editor_ui.home.input.caret());
                 self.editor_state
@@ -410,6 +417,9 @@ impl WidgetHostNative {
     }
 
     pub(in crate::widget_host) fn queue_home_send(&mut self) -> bool {
+        if self.editor_state.editor_ui.home.references_open {
+            return false;
+        }
         let Some(prompt) = self.editor_state.editor_ui.home.generation_prompt() else {
             return false;
         };
@@ -487,6 +497,12 @@ impl WidgetHostNative {
     }
 
     pub(in crate::widget_host) fn home_backspace(&mut self) -> Option<bool> {
+        if self.home_visible()
+            && self.editor_state.editor_ui.home.references_open
+            && !self.editor_state.editor_ui.agent_settings_open
+        {
+            return Some(true);
+        }
         if !self.editor_state.editor_ui.home_composer_owns_keyboard() {
             return None;
         }

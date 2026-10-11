@@ -45,7 +45,7 @@ impl WidgetHost {
         if self.editor_state.editor_ui.chat_model_picker.open {
             return Some(self.apply_chat_model_picker_text(c));
         }
-        if self.editor_state.editor_ui.login_modal_open || c.is_control() {
+        if !self.home_composer_owns_keyboard() || c.is_control() {
             return Some(true);
         }
         if self
@@ -66,7 +66,7 @@ impl WidgetHost {
         if self.editor_state.editor_ui.chat_model_picker.open {
             return Some(self.apply_chat_model_picker_backspace());
         }
-        if !self.editor_state.editor_ui.login_modal_open {
+        if self.home_composer_owns_keyboard() {
             self.editor_state.editor_ui.home.backspace(self.now_ms);
             self.mark_dirty();
         }
@@ -77,9 +77,7 @@ impl WidgetHost {
         if !self.home_visible() || self.editor_state.editor_ui.agent_settings_open {
             return None;
         }
-        if !self.editor_state.editor_ui.login_modal_open
-            && !self.editor_state.editor_ui.chat_model_picker.open
-        {
+        if self.home_composer_owns_keyboard() {
             self.editor_state.editor_ui.home.delete_forward(self.now_ms);
             self.mark_dirty();
         }
@@ -137,7 +135,7 @@ impl WidgetHost {
         if !self.home_visible() || self.home_modal_open() {
             return false;
         }
-        if self.editor_state.editor_ui.chat_model_picker.open {
+        if !self.home_composer_owns_keyboard() {
             return true;
         }
         self.editor_state
@@ -164,7 +162,7 @@ impl WidgetHost {
             return None;
         }
         let ui = &self.editor_state.editor_ui;
-        if ui.chat_model_picker.open || ui.login_modal_open {
+        if ui.chat_model_picker.open || ui.login_modal_open || ui.home.references_open {
             return Some(true);
         }
         if ui.home.generation_prompt().is_none() {
@@ -190,7 +188,9 @@ impl WidgetHost {
             return false;
         }
         let home = &mut self.editor_state.editor_ui.home;
-        if home.connect_card_open {
+        if home.references_open {
+            home.references_open = false;
+        } else if home.connect_card_open {
             home.connect_card_open = false;
         } else if home.more_open {
             home.more_open = false;
@@ -243,6 +243,9 @@ impl WidgetHost {
         }
         if let Some(scrolled) = self.wheel_home_model_picker(x, y, delta_y) {
             return Some(scrolled);
+        }
+        if self.editor_state.editor_ui.home.references_open {
+            return Some(false);
         }
         if y < HOME_TOPBAR_H {
             return Some(false);

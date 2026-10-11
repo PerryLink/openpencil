@@ -26,6 +26,45 @@ fn home_host() -> WidgetHost {
     host
 }
 
+#[test]
+fn home_reference_manager_owns_input_and_removes_the_selected_image() {
+    use op_editor_core::{chat::ChatAttachment, HomeHit};
+    let mut host = home_host();
+    host.editor_state.editor_ui.home.set_draft("保留需求");
+    for index in 0..4 {
+        host.editor_state.chat.add_attachment(ChatAttachment {
+            name: format!("reference-{index}.png"),
+            media_type: "image/png".into(),
+            data: vec![index],
+        });
+    }
+    let press = |host: &mut WidgetHost, hit| {
+        let surface = HomeSurface::for_editor(&host.editor_state).unwrap();
+        let rect = surface.focus_rect(&surface.layout(W, H), hit).unwrap();
+        let point = center(rect);
+        assert_eq!(host.press_home(point.x, point.y, W, H), Some(true));
+    };
+    press(&mut host, HomeHit::References);
+    assert!(host.editor_state.editor_ui.home.references_open);
+    host.apply_text('x');
+    host.apply_paste_text("do not change the brief");
+    host.home_backspace();
+    host.home_delete();
+    let caret = host.editor_state.editor_ui.home.input.caret();
+    host.apply_home_caret(false, false);
+    assert_eq!(host.editor_state.editor_ui.home.input.caret(), caret);
+    assert_eq!(host.home_enter(), Some(true));
+    assert_eq!(host.wheel_home(500.0, 450.0, -500.0, W, H), Some(false));
+    assert_eq!(host.editor_state.editor_ui.home.scroll_y, 0.0);
+    assert!(host.editor_state.chat.pending_send.is_none());
+    press(&mut host, HomeHit::ReferenceRemove(3));
+    assert_eq!(host.editor_state.chat.pending_attachments.len(), 3);
+    assert_eq!(host.editor_state.chat.pending_attachments[2].data, [2]);
+    assert_eq!(host.editor_state.editor_ui.home.draft, "保留需求");
+    assert!(host.home_escape());
+    assert!(!host.editor_state.editor_ui.home.references_open);
+}
+
 /// A browser whose daemon serves models (the served-key path).
 fn served_home_host() -> WidgetHost {
     let mut host = home_host();

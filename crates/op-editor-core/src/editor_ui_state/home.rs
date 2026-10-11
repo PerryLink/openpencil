@@ -9,6 +9,9 @@
 
 use jian_core::text_input::TextInputState;
 
+#[path = "home_references.rs"]
+mod references;
+
 #[path = "home_brand.rs"]
 pub mod brand;
 #[path = "share_recipe.rs"]
@@ -322,6 +325,10 @@ pub enum HomeHit {
     Segment(u8),
     /// The 添加截图 tool.
     Attachment,
+    /// Manage all staged reference images, including collapsed chips.
+    References,
+    ReferenceRemove(usize),
+    ReferencesClose,
     /// The 加链接 tool: read a brand from the brief's link or staged
     /// screenshot (disabled on hosts without an extraction runner).
     ReferenceLink,
@@ -418,6 +425,8 @@ pub struct HomeState {
     /// The "先接入一个模型" connect card, opened by Send / the model chip
     /// when no chat agent can answer yet. Modal over the composer.
     pub connect_card_open: bool,
+    /// The staged reference-image list is modal over Home.
+    pub references_open: bool,
     /// The narrow-viewport 更多 task popover.
     pub more_open: bool,
     /// The inline 替换现有需求？ confirm strip inside the composer.
@@ -479,6 +488,7 @@ impl Default for HomeState {
             shown_at_ms: 0,
             input: TextInputState::default(),
             connect_card_open: false,
+            references_open: false,
             more_open: false,
             replace_pending: false,
             art_switched_at_ms: 0,
@@ -508,6 +518,7 @@ impl HomeState {
         self.key_focus = None;
         self.shown_at_ms = 0;
         self.connect_card_open = false;
+        self.references_open = false;
         self.more_open = false;
         self.replace_pending = false;
         self.card_hover_since_ms = 0;
@@ -720,6 +731,7 @@ impl super::EditorUiState {
     /// Touch keyboard visibility additionally follows `composer_focused`.
     pub fn home_composer_owns_keyboard(&self) -> bool {
         self.home.visible
+            && !self.home.references_open
             && !self.agent_settings_open
             && !self.save_name_dialog.open
             && !self.login_modal_open

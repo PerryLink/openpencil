@@ -30,6 +30,14 @@ impl WidgetHostNative {
         // settings / sign-in modals Home opens are closed by their own
         // rungs further down this ladder.)
         if self.editor_state.editor_ui.home.visible {
+            if self.editor_state.editor_ui.home.references_open {
+                self.editor_state
+                    .apply_home_reference_action(op_editor_core::HomeHit::ReferencesClose);
+                self.editor_state.editor_ui.home.key_focus =
+                    Some(op_editor_core::HomeHit::References);
+                self.mark_dirty();
+                return true;
+            }
             if self.editor_state.editor_ui.home.connect_card_open {
                 self.editor_state.editor_ui.home.connect_card_open = false;
                 self.mark_dirty();

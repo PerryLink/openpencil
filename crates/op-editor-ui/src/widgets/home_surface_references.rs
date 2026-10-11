@@ -46,6 +46,30 @@ fn attachment_bounds(surface: &HomeSurface<'_>, input_box: Rect) -> Rect {
     )
 }
 
+fn manage_label(surface: &HomeSurface<'_>) -> String {
+    format!(
+        "{} · {}",
+        surface.attachment_names.len(),
+        op_i18n::translate(surface.ui.locale, "home.references.manage")
+    )
+}
+
+pub(crate) fn manage_rect(surface: &HomeSurface<'_>, input_box: Rect) -> Option<Rect> {
+    if surface.attachment_names.is_empty() {
+        return None;
+    }
+    let bounds = attachment_bounds(surface, input_box);
+    let width = (super::copy::estimate_text_w(&manage_label(surface), FONT) + 20.0)
+        .max(64.0)
+        .min(bounds.size.x);
+    Some(Rect::xywh(
+        bounds.origin.x + bounds.size.x - width,
+        bounds.origin.y,
+        width,
+        ROW_H,
+    ))
+}
+
 #[derive(Debug)]
 struct AttachmentChip {
     rect: Rect,
@@ -128,7 +152,16 @@ pub(crate) fn paint(
     input_box: Rect,
     palette: StudioPalette,
 ) {
-    let bounds = attachment_bounds(surface, input_box);
+    let mut bounds = attachment_bounds(surface, input_box);
+    let manage = manage_rect(surface, input_box);
+    if let Some(manage) = manage {
+        bounds.size.x = (manage.origin.x - CHIP_GAP - bounds.origin.x).max(0.0);
+        // The manager already shows the total: do not squeeze a second
+        // count or an unreadable filename into a narrow shared row.
+        if bounds.size.x < 78.0 {
+            bounds.size.x = 0.0;
+        }
+    }
     let chips = attachment_chips(&surface.attachment_names, bounds, |label| {
         text_metrics::measure_chrome(cx.backend, label, FONT)
     });
@@ -167,6 +200,38 @@ pub(crate) fn paint(
         );
     }
     cx.backend.restore();
+    if let Some(manage) = manage {
+        let hovered = surface.state.hover == Some(op_editor_core::HomeHit::References);
+        cx.backend.fill_round_rect(
+            manage,
+            6.0,
+            if hovered {
+                palette.button_hover
+            } else {
+                palette.blue_soft
+            },
+        );
+        let label = text_metrics::fit_chrome(
+            cx.backend,
+            &manage_label(surface),
+            (manage.size.x - 12.0).max(0.0),
+            FONT,
+        );
+        let width = text_metrics::measure_chrome(cx.backend, &label, FONT);
+        cx.backend.draw_text(
+            &crate::TextLayout::single_run(
+                &label,
+                SANS,
+                FONT,
+                palette.link.to_jian(),
+                Point2D::ZERO,
+            ),
+            Point2D::new(
+                manage.origin.x + (manage.size.x - width) / 2.0,
+                jian_widgets::centered_text_baseline_y(manage, FONT),
+            ),
+        );
+    }
     brand_chip::paint_brand_chip(surface, cx, input_box, palette);
 }
 

@@ -169,3 +169,69 @@ fn the_phone_paints_the_same_brand_chip_that_its_close_target_hits() {
         Some(op_editor_core::HomeHit::BrandClear)
     );
 }
+
+#[test]
+fn reference_manager_reaches_every_image_and_traps_hits_and_focus() {
+    use crate::widgets::{test_capture_backend::CaptureBackend, PaintCx, Widget};
+    use op_editor_core::HomeHit;
+    for (compact, width, height) in [
+        (false, 1180.0, 900.0),
+        (false, 700.0, 600.0),
+        (true, 390.0, 844.0),
+        (true, 320.0, 320.0),
+    ] {
+        let mut state = state(compact, 4, true);
+        let center =
+            |r: Rect| Point2D::new(r.origin.x + r.size.x / 2.0, r.origin.y + r.size.y / 2.0);
+        let home = HomeSurface::for_editor(&state).unwrap();
+        let page = home.layout(width, height);
+        let manage = manage_rect(&home, page.input_box).unwrap();
+        let (brand, _) = brand_chip::chip_rects(&home, page.input_box).unwrap();
+        assert!(right(manage) + CHIP_GAP <= brand.origin.x + 0.01);
+        assert_eq!(
+            home.hit_test(width, height, center(manage)),
+            Some(HomeHit::References)
+        );
+        assert!(home
+            .focus_order(width, height)
+            .contains(&HomeHit::References));
+        state.apply_home_reference_action(HomeHit::References);
+        state.editor_ui.home.scroll_y = 100.0;
+        let home = HomeSurface::for_editor(&state).unwrap();
+        let page = home.layout(width, height);
+        let order = home.focus_order(width, height);
+        assert_eq!(
+            order,
+            vec![
+                HomeHit::ReferencesClose,
+                HomeHit::ReferenceRemove(0),
+                HomeHit::ReferenceRemove(1),
+                HomeHit::ReferenceRemove(2),
+                HomeHit::ReferenceRemove(3)
+            ]
+        );
+        for hit in &order {
+            let rect = home.focus_rect(&page, *hit).unwrap();
+            assert!(rect.origin.x >= 0.0 && rect.origin.y >= 0.0);
+            assert!(right(rect) <= width && bottom(rect) <= height);
+            assert!(rect.size.x >= 44.0 && rect.size.y >= 44.0);
+            assert_eq!(home.hit_test(width, height, center(rect)), Some(*hit));
+            assert_eq!(home.focus_scroll_for(width, height, *hit, 56.0), None);
+        }
+        assert_eq!(
+            home.hit_test(width, height, Point2D::new(2.0, 2.0)),
+            Some(HomeHit::ReferencesClose)
+        );
+        let mut backend = CaptureBackend::default();
+        home.paint(
+            &mut PaintCx {
+                backend: &mut backend,
+            },
+            Rect::xywh(0.0, 0.0, width, height),
+        );
+        let last = home.focus_rect(&page, HomeHit::ReferenceRemove(3)).unwrap();
+        assert!(backend.texts.iter().any(|(text, at)| text
+            == op_i18n::translate(state.editor_ui.locale, "home.references.remove")
+            && last.contains(*at)));
+    }
+}

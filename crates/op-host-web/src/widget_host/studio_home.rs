@@ -88,6 +88,9 @@ impl WidgetHost {
 
     fn run_home_hit(&mut self, hit: HomeHit, input_offset: Option<usize>) {
         match hit {
+            HomeHit::References | HomeHit::ReferenceRemove(_) | HomeHit::ReferencesClose => {
+                self.editor_state.apply_home_reference_action(hit);
+            }
             HomeHit::Sheet => {
                 let caret = input_offset.unwrap_or(self.editor_state.editor_ui.home.input.caret());
                 self.editor_state

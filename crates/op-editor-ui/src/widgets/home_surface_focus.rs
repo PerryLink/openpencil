@@ -38,6 +38,10 @@ impl HomeSurface<'_> {
             }
             HomeHit::Segment(index) => *layout.segment_options.get(index as usize)?,
             HomeHit::Attachment => layout.screenshot,
+            HomeHit::References => super::references::manage_rect(self, layout.input_box)?,
+            HomeHit::ReferenceRemove(_) | HomeHit::ReferencesClose => {
+                super::reference_manager::focus_rect(self, layout.viewport, hit)?
+            }
             HomeHit::Variants => layout.variants,
             HomeHit::ModelChip => layout.model_chip,
             HomeHit::Send => layout.send,
@@ -80,11 +84,17 @@ impl HomeSurface<'_> {
                 HomeHit::ConnectCli,
             ];
         }
+        if self.state.references_open {
+            let mut order = vec![HomeHit::ReferencesClose];
+            order.extend((0..self.attachment_names.len()).map(HomeHit::ReferenceRemove));
+            return order;
+        }
         let mut order = Vec::with_capacity(32);
         if self.state.replace_pending {
             order.extend([HomeHit::ReplaceConfirm, HomeHit::ReplaceKeep]);
         }
         order.push(HomeHit::Sheet);
+        order.push(HomeHit::References);
         order.extend((0..4).map(HomeHit::Segment));
         order.extend([
             HomeHit::Attachment,
@@ -141,7 +151,11 @@ impl HomeSurface<'_> {
     ) -> Option<f32> {
         if matches!(
             hit,
-            HomeHit::OpenFile | HomeHit::Account | HomeHit::Professional
+            HomeHit::OpenFile
+                | HomeHit::Account
+                | HomeHit::Professional
+                | HomeHit::ReferenceRemove(_)
+                | HomeHit::ReferencesClose
         ) {
             return None;
         }
