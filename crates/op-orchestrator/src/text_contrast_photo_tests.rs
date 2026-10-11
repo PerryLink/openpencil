@@ -2,6 +2,129 @@ use super::*;
 use base64::Engine as _;
 
 #[test]
+fn nested_photo_captions_put_each_backing_behind_the_live_overlay_branch() {
+    let image = image::RgbaImage::from_pixel(20, 10, image::Rgba([245, 245, 245, 255]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+    let src = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes.into_inner())
+    );
+    let doc = serde_json::from_value(json!({"version":"1.0.0",
+        "variables":{"--foreground":{"type":"color","value":"#111111"},"--background":{"type":"color","value":"#FFFFFF"}},
+        "children":[{"type":"frame","id":"root","width":375,"height":300,"layout":"none","children":[
+            {"type":"text","id":"title","x":24,"y":100,"width":200,"height":32,"content":"燕麦拿铁","fontSize":20,"fill":[{"type":"solid","color":"#FFFFFF"}]},
+            {"type":"frame","id":"price-row","x":24,"y":150,"layout":"horizontal","gap":8,"children":[
+                {"type":"text","id":"price","width":"fit_content","height":"fit_content","content":"32元","fontSize":18,"fill":[{"type":"solid","color":"#FFFFFF"}]},
+                {"type":"text","id":"caption","width":"fit_content","height":"fit_content","content":"今日推荐","fontSize":12,"fill":[{"type":"solid","color":"#FFFFFF"}]}
+            ]},
+            {"type":"image","id":"photo","width":375,"height":300,"src":src}
+        ]}]})).unwrap();
+    let mut state = EditorState::from_document(doc);
+    assert_eq!(repair_for_image(&mut state, &NodeId::new("photo")), 3);
+    let value = serde_json::to_value(&state.doc).unwrap();
+    let kids = value["children"][0]["children"].as_array().unwrap();
+    let price_at = kids.iter().position(|n| n["id"] == "price-row").unwrap();
+    assert_eq!(
+        price_at, 2,
+        "only the title's backing precedes the price row"
+    );
+    assert_eq!(kids[price_at + 1]["name"], "Text contrast backing");
+    assert_eq!(kids[price_at + 2]["name"], "Text contrast backing");
+    let settled = state.doc.clone();
+    assert_eq!(repair_for_image(&mut state, &NodeId::new("photo")), 0);
+    assert_eq!(
+        state.doc, settled,
+        "a second image callback must not duplicate panels"
+    );
+}
+
+#[test]
+fn a_photo_scrim_is_measured_before_adding_a_caption_panel() {
+    let image = image::RgbaImage::from_pixel(20, 10, image::Rgba([245, 245, 245, 255]));
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .unwrap();
+    let src = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes.into_inner())
+    );
+    for (alpha, expected) in [("D9", 0), ("55", 1)] {
+        let doc = serde_json::from_value(json!({"version":"1.0.0",
+            "variables":{"--foreground":{"type":"color","value":"#111111"},"--background":{"type":"color","value":"#FFFFFF"}},
+            "children":[{"type":"frame","id":"root","width":375,"height":300,"layout":"none","children":[
+                {"type":"text","id":"caption","x":24,"y":240,"width":200,"height":32,"content":"今日推荐","fontSize":20,"fill":[{"type":"solid","color":"#FFFFFF"}]},
+                {"type":"rectangle","id":"scrim","width":375,"height":300,"fill":[{"type":"linear_gradient","angle":180,
+                    "stops":[{"offset":0,"color":"#00000000"},{"offset":1,"color":format!("#000000{alpha}")}]}]},
+                {"type":"image","id":"photo","width":375,"height":300,"src":src}
+            ]}]})).unwrap();
+        let mut state = EditorState::from_document(doc);
+        assert_eq!(
+            repair_for_image(&mut state, &NodeId::new("photo")),
+            expected,
+            "scrim={alpha}"
+        );
+        assert_eq!(repair_for_image(&mut state, &NodeId::new("photo")), 0);
+        let caption =
+            op_editor_core::walkers::find_node(state.active_children(), &NodeId::new("caption"))
+                .unwrap();
+        assert_eq!(
+            serde_json::to_value(caption).unwrap()["fill"][0]["color"],
+            "#FFFFFF"
+        );
+    }
+}
+
+#[test]
+fn a_translucent_badge_measures_the_photo_beneath_its_tint() {
+    for (pixel, expected) in [([30, 30, 30, 255], 1), ([245, 245, 245, 255], 0)] {
+        let image = image::RgbaImage::from_pixel(20, 10, image::Rgba(pixel));
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        let src = format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes.into_inner())
+        );
+        let doc = serde_json::from_value(json!({"version":"1.0.0",
+            "variables":{"--foreground":{"type":"color","value":"#111111"},
+                         "--background":{"type":"color","value":"#FFFFFF"}},
+            "children":[{"type":"frame","id":"root","width":375,"height":300,"layout":"none","children":[
+                {"type":"frame","id":"badge","x":24,"y":120,"layout":"horizontal","padding":[4,12],"cornerRadius":8,
+                    "fill":[{"type":"solid","color":"#FF5A1F14"}],"children":[
+                        {"type":"text","id":"caption","width":"fit_content","height":"fit_content","content":"今日推荐","fontSize":11,"fill":[{"type":"solid","color":"#111111"}]}
+                    ]},
+                {"type":"image","id":"photo","width":375,"height":300,"src":src}
+            ]}]})).unwrap();
+        let mut state = EditorState::from_document(doc);
+        assert_eq!(
+            repair_for_image(&mut state, &NodeId::new("photo")),
+            expected,
+            "photo={pixel:?}"
+        );
+        let mut sink = crate::loop_finalize::StateDocSink { state: &mut state };
+        assert_eq!(repair(&mut sink, "root"), 0);
+        let settled = sink.state().doc.clone();
+        assert_eq!(repair(&mut sink, "root"), 0);
+        super::super::repair_text_contrast(&mut sink, "root");
+        assert_eq!(sink.state().doc, settled);
+        let caption = op_editor_core::walkers::find_node(
+            sink.state().active_children(),
+            &NodeId::new("caption"),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(caption).unwrap()["fill"][0]["color"],
+            "#111111"
+        );
+    }
+}
+
+#[test]
 fn a_bright_photo_gets_readable_backing_without_recoloring_or_losing_ink() {
     let image = image::RgbaImage::from_pixel(20, 10, image::Rgba([245, 245, 245, 255]));
     let mut bytes = std::io::Cursor::new(Vec::new());

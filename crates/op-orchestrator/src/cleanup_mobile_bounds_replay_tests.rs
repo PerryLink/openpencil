@@ -38,6 +38,8 @@ fn replay_retained_mobile_bounds() {
     }
     let mut sink = crate::loop_finalize::StateDocSink { state: &mut state };
     assert!(super::super::mobile_scroll::repair(&mut sink, &root_id));
+    let photo_contrast_repairs =
+        crate::text_contrast_repair::repair_text_contrast(&mut sink, &root_id);
     let nav_after = bounds(sink.state(), &nav_id);
     let board = bounds(sink.state(), &root_id);
     let issues_after = crate::geometry_validation::geometry_diagnostics(sink.state());
@@ -64,6 +66,6 @@ fn replay_retained_mobile_bounds() {
     std::fs::write(output.with_extension("receipt.json"),serde_json::to_vec_pretty(&json!({
         "issues_before":issues_before,"issues_after":issues_after,"nav_before":nav_before,"nav_after":nav_after,
         "fixed_board":board,"fallback_patches":patches.len(),"root_height_preserved":before.children[0].height_px()==sink.state().doc.children[0].height_px(),
-        "extra_model_calls":0,"source_document_mutated":false
+        "extra_model_calls":0,"source_document_mutated":false,"photo_contrast_repairs":photo_contrast_repairs
     })).unwrap()).unwrap();
 }

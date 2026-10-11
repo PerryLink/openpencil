@@ -9,6 +9,46 @@ use std::time::{Duration, Instant};
 
 const TINY_PNG_DATA_URL: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
+#[test]
+fn a_loaded_photo_repairs_its_translucent_badge_in_the_mobile_queue() {
+    const BRIGHT_PNG: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4+vXrfwAJoQPf1gvoUgAAAABJRU5ErkJggg==";
+    let mut host = WidgetHostNative::new();
+    let state = host.editor_state_mut();
+    state.doc = serde_json::from_value(serde_json::json!({"version":"1.0.0",
+        "variables":{"--foreground":{"type":"color","value":"#111111"},
+                     "--background":{"type":"color","value":"#FFFFFF"}},
+        "children":[{"type":"frame","id":"root","width":375,"height":300,"layout":"none","children":[
+            {"type":"frame","id":"badge","x":24,"y":120,"layout":"horizontal","padding":[4,12],"cornerRadius":8,
+                "fill":[{"type":"solid","color":"#FF5A1F14"}],"children":[
+                    {"type":"text","id":"caption","content":"今日推荐","fontSize":11,"fill":[{"type":"solid","color":"#FFFFFF"}]}
+                ]},
+            {"type":"image","id":"photo","width":375,"height":300,"src":"","imageSearchQuery":"coffee cup"}
+        ]}]})).unwrap();
+    state.mark_document_changed();
+    let (tx, rx) = mpsc::channel();
+    tx.send(Some(BRIGHT_PNG.to_owned())).unwrap();
+    let mut search = MobileImageSearch::with_fetcher(failing_fetcher);
+    search.jobs.push(ImageJob {
+        node_id: NodeId::new("photo"),
+        query: "coffee cup".into(),
+        rx,
+    });
+    assert!(search.poll_into(&mut host));
+    let state = host.editor_state();
+    let value = serde_json::to_value(&state.doc).unwrap();
+    assert!(value.to_string().contains("Text contrast backing"));
+    let caption =
+        op_editor_core::walkers::find_node(state.active_children(), &NodeId::new("caption"))
+            .unwrap();
+    assert_eq!(
+        serde_json::to_value(caption).unwrap()["fill"][0]["color"],
+        "#FFFFFF"
+    );
+    let settled = state.doc.clone();
+    assert!(!search.poll_into(&mut host));
+    assert_eq!(host.editor_state().doc, settled);
+}
+
 fn host_with_search_slot(query: &str) -> WidgetHostNative {
     let mut host = WidgetHostNative::new();
     let state = host.editor_state_mut();

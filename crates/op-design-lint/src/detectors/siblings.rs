@@ -12,7 +12,7 @@
 
 use std::collections::HashSet;
 
-use jian_ops_schema::node::{Padding, PenNode};
+use jian_ops_schema::node::{container::LayoutMode, Padding, PenNode};
 use serde_json::Value;
 
 use super::spacing::{is_full_bleed_section, numeric_width};
@@ -162,6 +162,14 @@ fn check_consistency(
     }
     let mut values: Vec<(String, Group)> = Vec::new();
     for node in siblings {
+        // Absolute artwork has its own viewport, not the flow sections'
+        // majority height. Resetting a photo composition to Hug after layout
+        // cleanup can grow the phone again and push its pinned nav offscreen.
+        if property == "height"
+            && matches!(node, PenNode::Frame(f) if f.container.layout == Some(LayoutMode::None))
+        {
+            continue;
+        }
         let Some(raw) = node_property_value(node, property) else {
             continue;
         };

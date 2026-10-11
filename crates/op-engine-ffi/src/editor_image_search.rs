@@ -209,6 +209,9 @@ impl MobileImageSearch {
                         let resolved =
                             url.unwrap_or_else(|| SEARCH_FAILED_PLACEHOLDER_SRC.to_string());
                         let applied = apply_result(state, &job.node_id, &resolved);
+                        if applied {
+                            op_orchestrator::repair_photo_caption_for_image(state, &job.node_id);
+                        }
                         eprintln!(
                             "openpencil-mobile: image search done ({} applied={} failed={})",
                             job.node_id.as_str(),

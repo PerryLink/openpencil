@@ -52,45 +52,46 @@ pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> bool {
     // Reserve the complete child row plus chrome padding. A centered row
     // taller than the parent's inner box grows its bounds only halfway;
     // merely copying that partial overflow back as height is not sufficient.
+    let nav_kids = nav.get("children").and_then(Value::as_array);
+    let pad = super::padding(nav);
+    let required = nav_kids
+        .filter(|kids| {
+            !kids.is_empty()
+                && kids.iter().all(|child| {
+                    child.get("constraints").is_none()
+                        && child.get("x").is_none()
+                        && child.get("y").is_none()
+                })
+        })
+        .filter(|_| nav.get("layout").and_then(Value::as_str) == Some("horizontal"))
+        .map(|kids| {
+            kids.iter()
+                .filter_map(|child| {
+                    child
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .and_then(|id| page.find(id))
+                })
+                .map(|child| child.bounds.size.y as f64)
+                .fold(0.0, f64::max)
+                + pad[0]
+                + pad[2]
+        });
+    let needs_nav_height = nav.get("constraints").is_none()
+        && nav.get("x").is_none()
+        && nav.get("y").is_none()
+        && nav
+            .get("height")
+            .and_then(Value::as_f64)
+            .is_some_and(|h| required.is_some_and(|needed| needed > h + 1.0 && needed <= 96.0));
     if let [viewport] = middle {
-        let nav_kids = nav.get("children").and_then(Value::as_array);
-        let pad = super::padding(nav);
-        let required = nav_kids
-            .filter(|kids| {
-                !kids.is_empty()
-                    && kids.iter().all(|child| {
-                        child.get("constraints").is_none()
-                            && child.get("x").is_none()
-                            && child.get("y").is_none()
-                    })
-            })
-            .filter(|_| nav.get("layout").and_then(Value::as_str) == Some("horizontal"))
-            .map(|kids| {
-                kids.iter()
-                    .filter_map(|child| {
-                        child
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .and_then(|id| page.find(id))
-                    })
-                    .map(|child| child.bounds.size.y as f64)
-                    .fold(0.0, f64::max)
-                    + pad[0]
-                    + pad[2]
-            });
         if viewport.get("role").and_then(Value::as_str) == Some("scroll-area")
             && viewport.get("constraints").is_none()
             && viewport.get("x").is_none()
             && viewport.get("y").is_none()
             && viewport.get("clipContent").and_then(Value::as_bool) == Some(true)
             && viewport.get("height").and_then(Value::as_str) == Some("fill_container")
-            && nav.get("constraints").is_none()
-            && nav.get("x").is_none()
-            && nav.get("y").is_none()
-            && nav
-                .get("height")
-                .and_then(Value::as_f64)
-                .is_some_and(|h| required.is_some_and(|needed| needed > h + 1.0 && needed <= 96.0))
+            && needs_nav_height
         {
             return sink.apply(EditorCommand::PatchNodeData {
                 node_id: NodeId::new(nav_id),
@@ -150,5 +151,14 @@ pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> bool {
         patch_json: json!({"gap":0}).to_string(),
         page_id: None,
     });
+    // The first insertion must reserve the full intrinsic nav row too. Waiting
+    // for another finalize leaves a centered nested tab row below the viewport.
+    if needs_nav_height {
+        sink.apply(EditorCommand::PatchNodeData {
+            node_id: NodeId::new(nav_id),
+            patch_json: json!({"height":required.unwrap().ceil()}).to_string(),
+            page_id: None,
+        });
+    }
     true
 }

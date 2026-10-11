@@ -2,6 +2,11 @@
 use super::*;
 use jian_scene::layout_scene::SceneImageFit;
 use serde_json::json;
+#[path = "text_contrast_photo_layers.rs"]
+mod layers;
+#[cfg(test)]
+#[path = "text_contrast_photo_replay_tests.rs"]
+mod replay_tests;
 
 /// Run the same caption repair when asynchronous image enrichment lands.
 pub fn repair_for_image(state: &mut EditorState, image_id: &NodeId) -> usize {
@@ -65,13 +70,13 @@ pub(super) fn overlay_background(
         .iter()
         .position(|n| n.id_str() == parent.id_str())
         .unwrap_or(0);
-    if ancestors[owner + 1..].iter().any(|n| {
-        !matches!(
-            resolve_fill_kind(node_fills(n), variables, theme),
-            ResolvedFill::Transparent
-        )
-    }) {
-        return OverlayBackground::Unrelated;
+    let mut tints = Vec::new();
+    for ancestor in &ancestors[owner + 1..] {
+        match resolve_fill_kind(node_fills(ancestor), variables, theme) {
+            ResolvedFill::Transparent => {}
+            ResolvedFill::Solid(rgba) if rgba[3] < 255 => tints.push(rgba),
+            _ => return OverlayBackground::Unrelated,
+        }
     }
     let Some(at) = kids.iter().position(|n| {
         op_editor_core::walkers::find_node(std::slice::from_ref(n), &NodeId::new(node.id_str()))
@@ -94,7 +99,10 @@ pub(super) fn overlay_background(
         }
         if let ResolvedFill::Solid(rgba) = resolve_fill_kind(node_fills(behind), variables, theme) {
             if rgba[3] == 255 {
-                return OverlayBackground::Solid(rgb_hex(rgba), behind.id_str().into());
+                return OverlayBackground::Solid(
+                    tint_background(rgb_hex(rgba), &tints),
+                    behind.id_str().into(),
+                );
             }
         }
         if matches!(behind, PenNode::Image(_)) {
@@ -114,15 +122,48 @@ fn transparent_caption_texts<'a>(
         out.push(node);
         return;
     }
-    if !matches!(
-        resolve_fill_kind(node_fills(node), variables, theme),
-        ResolvedFill::Transparent
-    ) {
+    if !is_node_visible(node) || opacity(node) < 0.99 {
         return;
+    }
+    match resolve_fill_kind(node_fills(node), variables, theme) {
+        ResolvedFill::Transparent => {}
+        ResolvedFill::Solid(rgba) if rgba[3] < 255 => {}
+        _ => return,
     }
     for child in node_children_of(node) {
         transparent_caption_texts(child, variables, theme, out);
     }
+}
+
+fn caption_tints(
+    node: &PenNode,
+    caption_id: &str,
+    variables: &op_design_lint::node_util::Variables,
+    theme: &op_design_lint::node_util::Theme,
+) -> Vec<[u8; 4]> {
+    if node.id_str() == caption_id {
+        return Vec::new();
+    }
+    let mut tints = Vec::new();
+    if let ResolvedFill::Solid(rgba) = resolve_fill_kind(node_fills(node), variables, theme) {
+        tints.push(rgba);
+    }
+    if let Some(child) = node_children_of(node).iter().find(|n| {
+        op_editor_core::walkers::find_node(std::slice::from_ref(*n), &NodeId::new(caption_id))
+            .is_some()
+    }) {
+        tints.extend(caption_tints(child, caption_id, variables, theme));
+    }
+    tints
+}
+
+fn tint_background(mut color: String, tints: &[[u8; 4]]) -> String {
+    for tint in tints {
+        if let Some(under) = parse_color_rgba(&color) {
+            color = composite_over(*tint, under);
+        }
+    }
+    color
 }
 
 pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> usize {
@@ -190,6 +231,8 @@ fn visit(
                                 .is_some()
                             })
                             .unwrap_or(0);
+                        let overlay_id = kids[index].id_str();
+                        let tints = caption_tints(&kids[index], caption.id_str(), variables, theme);
                         if !matches!(caption, PenNode::Text(_))
                             || !is_node_visible(caption)
                             || opacity(caption) < 0.99
@@ -238,9 +281,19 @@ fn visit(
                         else {
                             continue;
                         };
-                        let colors: Vec<_> = samples
+                        let Some(colors) = layers::composite_samples(
+                            &samples,
+                            &kids[index + 1..photo_index],
+                            page,
+                            region,
+                            variables,
+                            theme,
+                        ) else {
+                            continue;
+                        };
+                        let colors: Vec<_> = colors
                             .into_iter()
-                            .map(|p| rgb_hex([p[0], p[1], p[2], 255]))
+                            .map(|color| tint_background(color, &tints))
                             .collect();
                         if colors.iter().all(|bg| {
                             op_design_lint::color::color_contrast(&ink, bg) >= TARGET_RATIO
@@ -252,16 +305,50 @@ fn visit(
                         let token = CANDIDATE_TOKENS.iter().find(|token| {
                             resolve_color_ref(&format!("${token}"), variables, theme).is_some_and(
                                 |bg| {
-                                    op_design_lint::color::color_contrast(&ink, &bg) >= TARGET_RATIO
+                                    op_design_lint::color::color_contrast(
+                                        &ink,
+                                        &tint_background(bg, &tints),
+                                    ) >= TARGET_RATIO
                                 },
                             )
                         });
                         let (Some(token), Some(parent)) = (token, page.find(node.id_str())) else {
                             continue;
                         };
+                        // A single-label translucent badge keeps its rounded
+                        // silhouette; a loose caption gets the small text panel.
+                        let badge = &kids[index];
+                        let badge_bounds = (!tints.is_empty()
+                            && node_children_of(badge).len() == 1
+                            && matches!(node_children_of(badge)[0], PenNode::Text(_)))
+                        .then(|| page.find(badge.id_str()).map(|n| n.bounds))
+                        .flatten();
+                        let (panel_box, radius) = match badge_bounds {
+                            Some(b) => (
+                                [
+                                    b.origin.x as f64,
+                                    b.origin.y as f64,
+                                    b.size.x as f64,
+                                    b.size.y as f64,
+                                ],
+                                serde_json::to_value(badge)
+                                    .ok()
+                                    .and_then(|v| v.get("cornerRadius").cloned())
+                                    .unwrap_or(json!(4)),
+                            ),
+                            None => (
+                                [
+                                    region[0] - 2.0,
+                                    region[1] - 2.0,
+                                    region[2] + 4.0,
+                                    region[3] + 4.0,
+                                ],
+                                json!(4),
+                            ),
+                        };
                         let panel:PenNode=serde_json::from_value(json!({"type":"rectangle","id":"text-backing","name":"Text contrast backing",
-                            "x":region[0]-parent.bounds.origin.x as f64-2.0,"y":region[1]-parent.bounds.origin.y as f64-2.0,
-                            "width":region[2]+4.0,"height":region[3]+4.0,"cornerRadius":4,
+                            "x":panel_box[0]-parent.bounds.origin.x as f64,"y":panel_box[1]-parent.bounds.origin.y as f64,
+                            "width":panel_box[2],"height":panel_box[3],"cornerRadius":radius,
                             "constraints":{"h":"left","v":"top"},"fill":[{"type":"solid","color":format!("${token}")}]})).unwrap();
                         if let Some(ids) = sink.insert_subtree_returning_root_ids(
                             vec![panel],
@@ -273,9 +360,7 @@ fn visit(
                                     &NodeId::new(node.id_str()),
                                 )
                                 .and_then(|n| n.children())
-                                .and_then(|kids| {
-                                    kids.iter().position(|n| n.id_str() == caption.id_str())
-                                })
+                                .and_then(|kids| kids.iter().position(|n| n.id_str() == overlay_id))
                                 .unwrap_or(index);
                                 sink.apply(EditorCommand::MoveNode {
                                     node_id: NodeId::new(id),

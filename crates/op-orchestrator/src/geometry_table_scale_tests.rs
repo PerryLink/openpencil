@@ -147,6 +147,89 @@ fn separated_mobile_chrome_rows_are_not_a_table() {
 }
 
 #[test]
+fn repeated_product_rows_with_elastic_spacers_are_not_table_columns() {
+    let product = |id: &str| {
+        json!({
+            "type":"frame","id":id,"layout":"horizontal","gap":12,"children":[
+                {"type":"image","width":64,"height":64},
+                {"type":"text","width":"fit_content","content":"拿铁"},
+                {"type":"frame","width":"fill_container","height":1},
+                {"type":"text","width":"fit_content","content":"28元"},
+                {"type":"frame","width":36,"height":36,"children":[
+                    {"type":"icon_font","width":16,"height":16,"iconFontName":"plus"}
+                ]}
+            ]
+        })
+    };
+    let list = json!({"type":"frame","layout":"vertical","children":[
+        product("latte"), product("americano")
+    ]});
+    let rects = ["latte", "americano"]
+        .into_iter()
+        .map(|id| {
+            (
+                id.to_string(),
+                Rect {
+                    x: 0.0,
+                    y: 0.0,
+                    w: 279.0,
+                    h: 72.0,
+                },
+            )
+        })
+        .collect();
+    assert!(!is_table_shape(&list));
+    assert!(table_overflow_scale(&list, &rects).is_none());
+    assert!(table_columns_exceed_width(&list, &rects).is_none());
+}
+
+#[test]
+fn product_price_hug_columns_keep_measured_width_and_add_button() {
+    let product = |id: &str| {
+        json!({"type":"frame","id":id,"layout":"horizontal",
+        "width":"fill_container","padding":[12,14],"gap":12,"children":[
+            {"type":"image","id":format!("{id}-photo"),"width":48,"height":48},
+            {"type":"frame","id":format!("{id}-name"),"width":"fill_container","children":[
+                {"type":"text","content":"燕麦拿铁"}
+            ]},
+            {"type":"text","id":format!("{id}-price"),"width":"fit_content","content":"32元"},
+            {"type":"frame","id":format!("{id}-add"),"width":32,"height":32,"children":[]}
+        ]})
+    };
+    let list = json!({"type":"frame","layout":"vertical","children":[product("a"),product("b")]});
+    let mut rects = HashMap::new();
+    for id in ["a", "b"] {
+        rects.insert(
+            id.into(),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 327.0,
+                h: 72.0,
+            },
+        );
+        rects.insert(
+            format!("{id}-price"),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 45.0,
+                h: 24.0,
+            },
+        );
+    }
+    assert!(
+        is_table_shape(&list),
+        "width arithmetic must work without hiding the structure"
+    );
+    assert!(table_overflow_scale(&list, &rects).is_none());
+    assert!(table_columns_exceed_width(&list, &rects).is_none());
+    let mut ops = Vec::new();
+    collect_scale_ops(&EditorState::default(), &list, &rects, &mut ops);
+    assert!(ops.is_empty(), "a fitting row must retain its 32px button");
+}
+
+#[test]
 fn contiguous_unnamed_rows_with_matching_width_modes_remain_a_table() {
     let widths = [json!(180), json!("fill_container"), json!(120), json!(96)];
     let table = json!({

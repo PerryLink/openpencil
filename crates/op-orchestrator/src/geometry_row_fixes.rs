@@ -212,7 +212,10 @@ enum TableCellWidthMode {
 }
 
 fn table_row_signature(row: &Value) -> Option<Vec<TableCellWidthMode>> {
-    if layout_str(row) != Some("horizontal") || children(row).len() < 3 {
+    if layout_str(row) != Some("horizontal")
+        || children(row).len() < 3
+        || children(row).iter().any(is_elastic_row_spacer)
+    {
         return None;
     }
     Some(
@@ -231,6 +234,25 @@ fn table_row_signature(row: &Value) -> Option<Vec<TableCellWidthMode>> {
             })
             .collect(),
     )
+}
+
+/// An empty flex spacer aligns the trailing price/actions by absorbing slack;
+/// it is not a data column that needs a readable width reservation.
+fn is_elastic_row_spacer(cell: &Value) -> bool {
+    cell.get("type").and_then(Value::as_str) == Some("frame")
+        && cell.get("width").and_then(Value::as_str) == Some("fill_container")
+        && cell
+            .get("height")
+            .and_then(Value::as_f64)
+            .is_some_and(|h| (0.0..=4.0).contains(&h))
+        && children(cell).is_empty()
+        && ["fill", "effects"].iter().all(|key| {
+            cell.get(*key)
+                .is_none_or(|v| v.is_null() || v.as_array().is_some_and(Vec::is_empty))
+        })
+        && ["stroke", "role", "events", "state", "constraints", "x", "y"]
+            .iter()
+            .all(|key| cell.get(*key).is_none_or(Value::is_null))
 }
 
 /// Return the repeated, contiguous row run that gives `v` a table shape.

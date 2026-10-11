@@ -157,6 +157,43 @@ fn existing_phone_scroll_area_reserves_the_navigation_actual_height() {
 }
 
 #[test]
+fn creating_a_phone_scroll_area_reserves_nested_hug_navigation_padding() {
+    let mut draft = state(json!({
+        "type":"frame","id":"root","width":375,"height":812,"layout":"vertical","children":[
+            {"type":"frame","id":"status","role":"status-bar","height":62,"width":"fill_container"},
+            {"type":"frame","id":"body","height":"fit_content","width":"fill_container","layout":"vertical",
+                "children":[{"type":"text","id":"copy","content":"Keep the full content","height":900,"fontSize":20}]},
+            {"type":"frame","id":"nav","role":"bottom-tab-bar","height":72,"width":"fill_container","layout":"horizontal","alignItems":"center","padding":[8,16],"children":[
+                {"type":"frame","id":"tab-row","width":"fill_container","height":"fit_content","layout":"horizontal","padding":[10,0,14,0],"children":[
+                    {"type":"frame","id":"tab","width":"fill_container","layout":"vertical","gap":4,"children":[
+                        {"type":"icon_font","id":"icon","width":20,"height":20,"iconFontName":"house"},
+                        {"type":"text","id":"label","content":"首页","fontSize":11,"lineHeight":1.5}
+                    ]}
+                ]}
+            ]}
+        ]
+    }));
+    let original_nav_children =
+        serde_json::to_value(&draft.doc).unwrap()["children"][0]["children"][2]["children"].clone();
+    let mut sink = crate::loop_finalize::StateDocSink { state: &mut draft };
+    repair(&mut sink, "root");
+    let scene = op_pen_loader::editor_state_to_active_page_layout_scene(sink.state());
+    let page = scene.active_page().unwrap();
+    let nav = page.find("nav").unwrap().bounds;
+    assert!(nav.origin.y + nav.size.y <= 813.0, "{nav:?}");
+    let value = serde_json::to_value(&sink.state().doc).unwrap();
+    assert_eq!(value["children"][0]["height"], 812.0);
+    assert_eq!(value["children"][0]["children"][1]["role"], "scroll-area");
+    assert_eq!(
+        value["children"][0]["children"][2]["children"],
+        original_nav_children
+    );
+    let settled = sink.state().doc.clone();
+    repair(&mut sink, "root");
+    assert_eq!(sink.state().doc, settled);
+}
+
+#[test]
 fn chinese_and_unnamed_empty_flow_spacers_yield_before_a_footer_is_clipped() {
     for name in [json!("标题至日期"), json!("报头留白"), Value::Null] {
         let mut draft = state(

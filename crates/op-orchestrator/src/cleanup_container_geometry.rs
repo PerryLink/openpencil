@@ -70,9 +70,9 @@ pub(super) fn absolute_container_repair(node: &PenNode) -> Option<AbsoluteContai
     let height = children
         .iter()
         .filter_map(|child| {
-            if !matches!(child, PenNode::Image(_)) {
-                return None;
-            }
+            // Captions and scrims share the absolute composition. Using only
+            // the image's height clips lower captions, then the overflow pass
+            // moves them upward into badges that were correctly separated.
             child
                 .height_px()
                 .map(|height| child.base().y.unwrap_or(0.0) + height)

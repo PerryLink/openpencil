@@ -74,6 +74,26 @@ fn absolute_fit_content_wrapper_expands_to_image_height() {
 }
 
 #[test]
+fn absolute_photo_wrapper_reserves_its_scrim_and_lower_caption() {
+    let mut sink = VecDocSink::new();
+    insert_tree(&mut sink, &json!({"type":"frame","id":"root","width":375,"height":812,
+        "layout":"vertical","children":[
+            {"type":"frame","id":"hero","width":"fill_container","height":"fit_content",
+             "layout":"none","clipContent":true,"children":[
+                {"type":"text","id":"caption","content":"燕麦拿铁 32元","x":24,"y":212,"width":300,"height":48},
+                {"type":"rectangle","id":"scrim","width":375,"height":300},
+                {"type":"image","id":"photo","src":"","width":375,"height":201}
+             ]}
+        ]}).to_string());
+    expand_absolute_container_to_children(&mut sink, "root");
+    assert_eq!(node_json(&sink, "hero")["height"], json!(300.0));
+    assert_eq!(node_json(&sink, "caption")["y"], json!(212.0));
+    let settled = sink.state.doc.clone();
+    expand_absolute_container_to_children(&mut sink, "root");
+    assert_eq!(sink.state.doc, settled);
+}
+
+#[test]
 fn absolute_wrapper_with_y_offset_uses_y_plus_height() {
     let mut sink = VecDocSink::new();
     insert_tree(

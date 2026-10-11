@@ -137,6 +137,15 @@ pub fn fill_images(state: &mut EditorState, config: &ImageFillConfig, dump: bool
             .as_deref()
             .unwrap_or(op_image_enrich::SEARCH_FAILED_PLACEHOLDER_SRC);
         if op_image_enrich::apply_result(state, &target.node_id, resolved) {
+            // Match the desktop's late-image callback: contrast cannot be
+            // established while the original photo slot is still empty.
+            let repaired = op_orchestrator::repair_photo_caption_for_image(state, &target.node_id);
+            if repaired > 0 {
+                eprintln!(
+                    "[SMOKE] photo contrast: {} repair(s) after {}",
+                    repaired, target.node_id
+                );
+            }
             if let Some(url) = url {
                 if dump {
                     eprintln!(

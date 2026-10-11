@@ -61,6 +61,23 @@ mod sibling_inconsistency_tests {
     }
 
     #[test]
+    fn absolute_photo_viewport_keeps_its_height_among_hugging_sections() {
+        let root = node(
+            json!({"type":"frame","id":"phone","layout":"vertical","children":[
+                {"type":"frame","id":"header","height":"fit_content","layout":"horizontal"},
+                {"type":"frame","id":"hero","height":300,"layout":"none","children":[
+                {"type":"image","id":"photo","src":"","width":375,"height":201}
+                ]},
+                {"type":"frame","id":"list","height":"fit_content","layout":"vertical"},
+                {"type":"frame","id":"pickup","height":"fit_content","layout":"vertical"}
+            ]}),
+        );
+        assert!(detect_sibling_inconsistencies(&root)
+            .iter()
+            .all(|issue| issue.node_id != "hero" || issue.property != FixProperty::Height));
+    }
+
+    #[test]
     fn flags_strict_corner_radius_outlier() {
         let root = node(json!({
             "type": "frame", "id": "root",

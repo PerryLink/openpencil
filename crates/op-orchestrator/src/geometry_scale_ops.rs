@@ -204,14 +204,7 @@ fn row_budget(row: &Value, rects: &HashMap<String, Rect>) -> Option<RowBudget> {
     for cell in cells {
         match fixed_width(cell) {
             Some(w) => fixed_sum += w,
-            // fill_container / fit_content — reserve room for it.
-            None => {
-                flex_floor += if bears_text(cell) {
-                    MIN_FILL_TEXT_COL
-                } else {
-                    MIN_FILL_COL
-                }
-            }
+            None => flex_floor += non_fixed_column_floor(cell, rects),
         }
     }
     if fixed_sum <= 0.0 {

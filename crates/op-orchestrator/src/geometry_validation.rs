@@ -97,6 +97,8 @@ mod geometry_diagnostics_collect;
 mod geometry_grow_fit_fixes;
 #[path = "geometry_overflow_fixes.rs"]
 mod geometry_overflow_fixes;
+#[path = "geometry_photo_caption_flow.rs"]
+mod geometry_photo_caption_flow;
 #[path = "geometry_pinned_composer.rs"]
 mod geometry_pinned_composer;
 #[path = "geometry_row_fixes.rs"]
@@ -221,6 +223,28 @@ const MIN_FILL_COL: f64 = 40.0;
 /// shreds "a.sterling@email.com" into a one-glyph-per-line tower that blows
 /// the row to 400px tall. Reserve enough for a readable two-line wrap.
 const MIN_FILL_TEXT_COL: f64 = 120.0;
+
+/// Hug columns consume their measured width, not the readable reserve of a
+/// growing prose column. Reserving 120px for a short price can falsely starve
+/// its siblings and shrink a product's add button even when the row fits.
+fn non_fixed_column_floor(cell: &Value, rects: &HashMap<String, Rect>) -> f64 {
+    if cell.get("width").and_then(Value::as_str) == Some("fit_content") {
+        if let Some(width) = cell
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| rects.get(id))
+            .map(|rect| rect.w)
+            .filter(|width| *width > 0.0)
+        {
+            return width;
+        }
+    }
+    if bears_text(cell) {
+        MIN_FILL_TEXT_COL
+    } else {
+        MIN_FILL_COL
+    }
+}
 /// Slack so a table that fits by a hair isn't needlessly rescaled.
 const OVERFLOW_EPS: f64 = 4.0;
 /// Leave a little breathing room after scaling.
@@ -343,6 +367,7 @@ pub fn geometry_validate_and_fix_for_form(
                 &mut cmds,
             );
             geometry_buried_overlay::collect_buried_overlay_fixes(&v, &rects, &mut cmds);
+            geometry_photo_caption_flow::collect_fixes(&v, &rects, &mut cmds);
             geometry_tutorial_labels::collect_fixes(&v, &rects, &mut cmds);
             collect_row_overfull_fixes(&v, &rects, &mut cmds, false);
             collect_rail_width_collapse_fixes(&v, &rects, &mut cmds);
@@ -462,13 +487,7 @@ fn table_columns_exceed_width(v: &Value, rects: &HashMap<String, Rect>) -> Optio
         for cell in cells {
             floor_sum += match fixed_width(cell) {
                 Some(w) => w * MIN_SCALE,
-                None => {
-                    if bears_text(cell) {
-                        MIN_FILL_TEXT_COL
-                    } else {
-                        MIN_FILL_COL
-                    }
-                }
+                None => non_fixed_column_floor(cell, rects),
             };
         }
         let Some(row_id) = row.get("id").and_then(Value::as_str) else {
