@@ -154,6 +154,7 @@ impl WidgetHostNative {
             // file) — keep the focus only while Home is still up.
             if home.visible {
                 home.key_focus = Some(match focus {
+                    HomeHit::MoreItem(family) => HomeHit::Tab(family),
                     HomeHit::References
                     | HomeHit::ReferenceRemove(_)
                     | HomeHit::ReferencesClose => {

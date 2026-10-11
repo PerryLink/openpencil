@@ -45,8 +45,9 @@ const PANEL_GAP: f32 = 18.0;
 const COMPOSER_FRAC: f32 = 1.05;
 /// Viewports narrower than this stack the two panels.
 const STACK_BREAK_W: f32 = 850.0;
-/// Content columns narrower than this compact the tab row to 4 + 更多.
-const TABS_COMPACT_W: f32 = 700.0;
+/// Reserve room for the icon, two lines of copy and side padding before
+/// showing all seven tasks. Narrower columns use four tasks + More.
+const TABS_COMPACT_W: f32 = 7.0 * 148.0 + 6.0 * TAB_GAP_NARROW;
 const EXPLORE_TOP_GAP: f32 = 26.0;
 const EXPLORE_TOP_GAP_SHORT: f32 = 22.0;
 const EXPLORE_HEADING_H: f32 = 22.0;
@@ -371,8 +372,10 @@ pub(crate) fn wide_layout_for_scrolled(
     let popover_h = MORE_CAPTION_H + hidden.len() as f32 * MORE_ROW_H + 10.0;
     let more_popover = if compact {
         Rect::xywh(
-            more_button.origin.x,
-            tabs_y + scroll + TAB_H + 8.0,
+            (more_button.origin.x + more_button.size.x - MORE_POPOVER_W).max(content_x),
+            (tabs_y + scroll + TAB_H + 8.0)
+                .min(viewport_height - popover_h - 8.0)
+                .max(HOME_TOPBAR_H),
             MORE_POPOVER_W,
             popover_h,
         )

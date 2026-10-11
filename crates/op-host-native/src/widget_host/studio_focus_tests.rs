@@ -120,6 +120,64 @@ fn enter_on_a_task_chip_switches_the_task_and_keeps_the_ring() {
 }
 
 #[test]
+fn narrow_home_more_menu_switches_tasks_and_restores_focus_to_the_visible_tab() {
+    let mut host = home_host();
+    host.last_viewport_w = 763.0;
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .set_task(HomeFamily::AppUi, 2_000);
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .set_draft("Keep my coffee app brief");
+    host.editor_state_mut().editor_ui.home.key_focus = Some(HomeHit::More);
+    assert!(host.activate_studio_key_focus());
+    assert!(host.editor_state().editor_ui.home.more_open);
+    assert!(host.apply_studio_focus_step(false));
+    assert_eq!(
+        host.editor_state().editor_ui.home.key_focus,
+        Some(HomeHit::MoreItem(HomeFamily::ScreenshotTutorial))
+    );
+    assert!(host.activate_studio_key_focus());
+    let home = &host.editor_state().editor_ui.home;
+    assert_eq!(home.task, HomeFamily::ScreenshotTutorial);
+    assert!(!home.more_open);
+    assert_eq!(
+        home.key_focus,
+        Some(HomeHit::Tab(HomeFamily::ScreenshotTutorial))
+    );
+    assert!(HomeSurface::for_editor(host.editor_state())
+        .unwrap()
+        .focus_order(763.0, H)
+        .contains(&home.key_focus.unwrap()));
+    host.editor_state_mut().editor_ui.home.key_focus = Some(HomeHit::Tab(HomeFamily::AppUi));
+    assert!(host.activate_studio_key_focus());
+    assert_eq!(
+        host.editor_state().editor_ui.home.draft,
+        "Keep my coffee app brief"
+    );
+    assert!(host.editor_state().chat.pending_send.is_none());
+}
+
+#[test]
+fn escape_from_a_more_menu_item_returns_focus_to_more() {
+    let mut host = home_host();
+    host.last_viewport_w = 763.0;
+    host.editor_state_mut().editor_ui.home.more_open = true;
+    host.editor_state_mut().editor_ui.home.key_focus =
+        Some(HomeHit::MoreItem(HomeFamily::EventPoster));
+    assert!(host.apply_escape());
+    assert!(!host.editor_state().editor_ui.home.more_open);
+    assert_eq!(
+        host.editor_state().editor_ui.home.key_focus,
+        Some(HomeHit::More)
+    );
+    assert!(host.activate_studio_key_focus());
+    assert!(host.editor_state().editor_ui.home.more_open);
+}
+
+#[test]
 fn the_composer_keeps_enter_and_space_for_text() {
     let mut host = home_host();
     host.editor_state_mut().editor_ui.home.key_focus = Some(HomeHit::Sheet);

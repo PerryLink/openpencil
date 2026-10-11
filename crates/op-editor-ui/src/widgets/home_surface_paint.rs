@@ -393,9 +393,21 @@ fn paint_tabs(
         let selected = surface.state.task == family;
         let hovered = surface.state.hover == Some(HomeHit::Tab(family));
         paint_tab_shell(cx, rect, palette, hovered, selected);
-        // Icon + two-line copy stack, centred as one group.
-        let name_w = cx.backend.measure_text_family(task.name, 14.0, SANS);
-        let summary_w = cx.backend.measure_text_family(task.summary, 11.0, SANS);
+        // Measure the painted weight and bound both lines before centring
+        // the group, so long translations cannot push the icon out.
+        let weight = if selected { 650 } else { 500 };
+        let copy_w = (rect.size.x - 20.0 - icon_size - copy_gap).max(0.0);
+        let name = crate::util::ellipsize_to_width(task.name, copy_w, |s| {
+            cx.backend
+                .measure_text_family_styled(s, 14.0, SANS, weight, false)
+        });
+        let summary = crate::util::ellipsize_to_width(task.summary, copy_w, |s| {
+            cx.backend.measure_text_family(s, 11.0, SANS)
+        });
+        let name_w = cx
+            .backend
+            .measure_text_family_styled(&name, 14.0, SANS, weight, false);
+        let summary_w = cx.backend.measure_text_family(&summary, 11.0, SANS);
         let stack_w = name_w.max(summary_w);
         let icon_x = rect.origin.x + (rect.size.x - icon_size - copy_gap - stack_w) / 2.0;
         let icon_y = rect.origin.y + (rect.size.y - icon_size) / 2.0;
@@ -414,7 +426,7 @@ fn paint_tabs(
         let copy_x = icon_x + icon_size + copy_gap;
         text_weighted(
             cx,
-            task.name,
+            &name,
             Point2D::new(copy_x, rect.origin.y + 24.0),
             14.0,
             if selected {
@@ -422,11 +434,11 @@ fn paint_tabs(
             } else {
                 palette.ink
             },
-            if selected { 650 } else { 500 },
+            weight,
         );
         text(
             cx,
-            task.summary,
+            &summary,
             Point2D::new(copy_x, rect.origin.y + 44.0),
             11.0,
             palette.muted,
@@ -457,13 +469,22 @@ fn paint_tabs(
         let hovered = surface.state.hover == Some(HomeHit::More);
         let open = surface.state.more_open;
         paint_tab_shell(cx, rect, palette, hovered, open);
-        let label = copy::home_str(locale, "home.tabs.more");
-        let label_w = cx.backend.measure_text_family(label, 14.0, SANS);
+        let label = crate::util::ellipsize_to_width(
+            copy::home_str(locale, "home.tabs.more"),
+            rect.size.x - 40.0,
+            |s| {
+                cx.backend
+                    .measure_text_family_styled(s, 14.0, SANS, 500, false)
+            },
+        );
+        let label_w = cx
+            .backend
+            .measure_text_family_styled(&label, 14.0, SANS, 500, false);
         let group_w = label_w + 6.0 + 14.0;
         let x = rect.origin.x + (rect.size.x - group_w) / 2.0;
         text_weighted(
             cx,
-            label,
+            &label,
             Point2D::new(x, rect.origin.y + 35.0),
             14.0,
             palette.ink,
@@ -547,9 +568,14 @@ fn paint_more_popover(
     cx.backend.fill_round_rect(popover, 12.0, palette.raised);
     cx.backend
         .stroke_round_rect(popover, 12.0, palette.raised_line, 1.0);
+    let caption = crate::util::ellipsize_to_width(
+        copy::home_str(locale, "home.tabs.moreCaption"),
+        popover.size.x - 24.0,
+        |s| cx.backend.measure_text_family(s, 11.0, SANS),
+    );
     text(
         cx,
-        copy::home_str(locale, "home.tabs.moreCaption"),
+        &caption,
         Point2D::new(popover.origin.x + 12.0, popover.origin.y + 17.0),
         11.0,
         palette.muted,
@@ -557,6 +583,14 @@ fn paint_more_popover(
     for (index, family) in hidden.iter().enumerate().take(4) {
         let row = layout.more_rows[index];
         let task = copy::task_copy(locale, *family, surface.state.draft_for(*family));
+        let copy_w = row.size.x - 60.0;
+        let name = crate::util::ellipsize_to_width(task.name, copy_w, |s| {
+            cx.backend
+                .measure_text_family_styled(s, 13.0, SANS, 500, false)
+        });
+        let summary = crate::util::ellipsize_to_width(task.summary, copy_w, |s| {
+            cx.backend.measure_text_family(s, 11.0, SANS)
+        });
         let hovered = surface.state.hover == Some(HomeHit::MoreItem(*family));
         if hovered {
             cx.backend
@@ -572,7 +606,7 @@ fn paint_more_popover(
         );
         text_weighted(
             cx,
-            task.name,
+            &name,
             Point2D::new(row.origin.x + 34.0, row.origin.y + 18.0),
             13.0,
             palette.ink,
@@ -580,7 +614,7 @@ fn paint_more_popover(
         );
         text(
             cx,
-            task.summary,
+            &summary,
             Point2D::new(row.origin.x + 34.0, row.origin.y + 34.0),
             11.0,
             palette.muted,
@@ -613,3 +647,7 @@ pub(super) mod panels;
 pub(super) mod sections;
 #[path = "home_surface_paint_works_grid.rs"]
 mod works_grid;
+
+#[cfg(test)]
+#[path = "home_surface_tabs_tests.rs"]
+mod tabs_tests;

@@ -45,6 +45,7 @@ impl WidgetHostNative {
             }
             if self.editor_state.editor_ui.home.more_open {
                 self.editor_state.editor_ui.home.more_open = false;
+                self.editor_state.editor_ui.home.key_focus = Some(op_editor_core::HomeHit::More);
                 self.mark_dirty();
                 return true;
             }

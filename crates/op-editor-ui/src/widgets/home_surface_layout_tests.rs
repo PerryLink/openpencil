@@ -209,7 +209,7 @@ fn narrow_viewports_stack_the_panels() {
 
 #[test]
 fn compact_rows_show_four_tabs_and_a_more_button() {
-    // 700 px viewport → 684 px content < 700 → compact row.
+    // 700 px viewport → 684 px content cannot fit seven readable tabs.
     let layout = layout(700.0, 900.0, HomeFamily::AppUi);
     assert!(layout.more_button.size.x > 0.0);
     for index in 0..4 {
@@ -221,7 +221,7 @@ fn compact_rows_show_four_tabs_and_a_more_button() {
     assert_eq!(
         HomeLayout::hidden_tasks(684.0, HomeFamily::AppUi).len(),
         3,
-        "knowledge / tutorial / poster are in the popover"
+        "tutorial / infographic / poster are in the popover"
     );
 }
 
