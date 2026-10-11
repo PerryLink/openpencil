@@ -44,6 +44,7 @@ mod micro_surface_radius;
 mod mobile_cards;
 mod mobile_category_row;
 mod mobile_search_header;
+mod orphan_control;
 mod surface_discipline;
 mod surface_structure;
 
@@ -54,6 +55,7 @@ use micro_surface_radius::*;
 use mobile_cards::*;
 use mobile_category_row::*;
 use mobile_search_header::*;
+use orphan_control::*;
 use surface_discipline::*;
 use surface_structure::*;
 
@@ -70,6 +72,7 @@ fn post_pass_value(
     if node.get("type").and_then(Value::as_str) != Some("frame") {
         return;
     }
+    adopt_orphan_button_parts(node);
     // I4 layout-property fixes (TS resolveTreePostPass order 1/2/3/4/6/8).
     // Still deferred: frame-height expansion (needs intrinsic measurement) and
     // placeholder icon repair (needs the icon catalog).
@@ -390,3 +393,7 @@ mod deck_tests;
 #[cfg(test)]
 #[path = "role_post_pass_pill_radius_tests.rs"]
 mod pill_radius_tests;
+
+#[cfg(test)]
+#[path = "role_post_pass_orphan_control_tests.rs"]
+mod orphan_control_tests;

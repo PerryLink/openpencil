@@ -125,6 +125,26 @@ fn has_dark_text_descendant(node: &Value) -> bool {
     false
 }
 
+/// Native form widgets paint their own labels; those labels are not `text`
+/// children and cannot vote in the surface-text tally. A lone white action
+/// label beside selects must not turn an entire toolbar into a promo band.
+fn contains_form_control(node: &Value) -> bool {
+    matches!(
+        node.get("type").and_then(Value::as_str),
+        Some(
+            "select"
+                | "text_input"
+                | "text_area"
+                | "number_input"
+                | "checkbox"
+                | "radio_group"
+                | "switch"
+                | "slider"
+        )
+    ) || matches!(role_of(node), Some("input" | "form-input" | "search-bar"))
+        || children_of(node).iter().any(contains_form_control)
+}
+
 /// Tally text colors that sit DIRECTLY on this container's (unfilled) surface.
 /// Do NOT descend into a child that carries its own renderable fill — a button
 /// / avatar / chip has its own surface, so its text colour says nothing about
@@ -207,6 +227,9 @@ pub(super) fn fix_invisible_text_band(node: &mut Value, theme: super::Theme, des
     if crate::cleanup::is_status_bar_from_json(node) {
         return;
     }
+    if contains_form_control(node) {
+        return;
+    }
     if has_body_text_and_button(node) && has_dark_text_descendant(node) {
         // A content panel can contain white/light text in one nested surface
         // and dark body/button text in another. The surface tally skips both
@@ -274,6 +297,44 @@ pub(super) fn tally_accent(node: &Value, counts: &mut Vec<(String, usize)>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn form_controls_veto_section_repaint_from_orphan_white_action_text() {
+        for kind in [
+            "select",
+            "text_input",
+            "text_area",
+            "number_input",
+            "checkbox",
+            "radio_group",
+            "switch",
+            "slider",
+        ] {
+            let mut toolbar = json!({"type":"frame","name":"Filter Bar","children":[
+                {"type":"frame","children":[
+                    {"type":kind,"fill":[{"type":"solid","color":"$--card"}]},
+                    {"type":"text","name":"Add User Label","content":"Add User","fill":[{"type":"solid","color":"#FFFFFF"}]}
+                ]}
+            ]});
+            let before = toolbar.clone();
+            fix_invisible_text_band(&mut toolbar, super::Theme::Light, "$--primary");
+            assert_eq!(
+                toolbar, before,
+                "native {kind} labels do not appear in the text tally"
+            );
+        }
+    }
+
+    #[test]
+    fn authored_form_surface_and_frame_input_are_not_repainted() {
+        let mut panel = json!({"type":"frame","fill":[{"type":"solid","color":"#FFFFFF"}],"children":[
+            {"type":"frame","role":"input"},
+            {"type":"text","content":"Subscribe","fill":[{"type":"solid","color":"#FFFFFF"}]}
+        ]});
+        let before = panel.clone();
+        fix_invisible_text_band(&mut panel, super::Theme::Light, "$--primary");
+        assert_eq!(panel, before);
+    }
 
     /// Status bar with role="status-bar" and white 9:41 text under a light theme
     /// should NOT get the design_accent stamp.
