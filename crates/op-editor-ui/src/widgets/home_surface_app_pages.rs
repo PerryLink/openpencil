@@ -6,7 +6,9 @@ use op_editor_core::{AppPages, HomeFamily, HomeHit, Locale};
 
 pub(super) fn height(family: HomeFamily) -> f32 {
     if family == HomeFamily::AppUi {
-        48.0
+        // Keep 14 px between the 44 px targets and the input border, including
+        // room for the input's 3 px focus halo.
+        60.0
     } else {
         0.0
     }

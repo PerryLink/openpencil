@@ -173,9 +173,11 @@ pub(super) fn compact_layout_for_scrolled(
     // ── the compact composer card ────────────────────────────────────
     let composer_y = grid_y + TILE_H * 2.0 + GRID_GAP + GRID_MARGIN_BOTTOM;
     let pages_h = super::super::app_pages::height(task);
+    // The page-count band already includes the gap before the input.
+    let label_gap = if pages_h > 0.0 { 0.0 } else { LABEL_ROW_GAP };
     let composer_h = COMPOSER_PAD_TOP
         + LABEL_ROW_H
-        + LABEL_ROW_GAP
+        + label_gap
         + pages_h
         + INPUT_H
         + INPUT_TOOLS_GAP
@@ -231,7 +233,7 @@ pub(super) fn compact_layout_for_scrolled(
     );
     let input_box = Rect::xywh(
         inner_x,
-        label_row.origin.y + LABEL_ROW_H + LABEL_ROW_GAP + pages_h,
+        label_row.origin.y + LABEL_ROW_H + label_gap + pages_h,
         inner_w,
         INPUT_H,
     );

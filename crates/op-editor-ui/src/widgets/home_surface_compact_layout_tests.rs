@@ -121,11 +121,11 @@ fn compact_top_bar_carries_the_two_way_mode_switch() {
 #[test]
 fn compact_composer_keeps_every_target_at_the_touch_floor() {
     let layout = compact_layout(&compact_state());
-    // The composer card spans the content column with prototype
-    // metrics: 10 + 44 + 5 + 85 + 6 + 44 + 44 + 12 = 250 tall.
+    // The App composer includes a page-count band with its input gap:
+    // 10 + 44 + 60 + 85 + 6 + 44 + 44 + 12 = 305 tall.
     // The card spans the content column; its 13 px padding is inner.
     assert_close(layout.composer.size.x, W - 34.0, 0.5);
-    assert_close(layout.composer.size.y, 298.0, 0.5);
+    assert_close(layout.composer.size.y, 305.0, 0.5);
     assert_min_touch(layout.send, "开始设计");
     assert_min_touch(layout.model_chip, "model chip");
     assert_min_touch(layout.screenshot, "加图片");
@@ -455,7 +455,7 @@ fn app_pages_have_separate_touch_targets_below_device_and_above_input() {
         for (index, rect) in layout.app_page_options.iter().enumerate() {
             assert_min_touch(*rect, "page count");
             assert!(rect.origin.y >= layout.label_row.origin.y + layout.label_row.size.y);
-            assert!(rect.origin.y + rect.size.y <= layout.input_box.origin.y);
+            assert!(rect.origin.y + rect.size.y + 12.0 <= layout.input_box.origin.y);
             assert_eq!(
                 home.hit_test(320.0, H, center(*rect)),
                 Some(HomeHit::Segment(index as u8 + 2))

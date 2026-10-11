@@ -26,6 +26,16 @@ fn overlaps(a: Rect, b: Rect) -> bool {
         && b.origin.y < a.origin.y + a.size.y
 }
 
+fn assert_page_choices_clear_input(layout: &HomeLayout) {
+    for option in layout.app_page_options {
+        assert!(option.size.y >= 44.0, "keep the touch target height");
+        assert!(
+            layout.input_box.origin.y - (option.origin.y + option.size.y) >= 12.0,
+            "page choices must leave room above the input's focus halo"
+        );
+    }
+}
+
 #[test]
 fn layout_at_1440_matches_the_approved_composition() {
     let layout = layout(1440.0, 900.0, HomeFamily::AppUi);
@@ -57,8 +67,8 @@ fn layout_at_1440_matches_the_approved_composition() {
         "composer:preview = {} must be ≈1.05",
         ratio
     );
-    // The composer internals stack inside the panel (the wide variant's
-    // 41 px label row leaves a 199 px input box).
+    // The composer internals stack inside the panel with room for the
+    // label, page choices, and a multiline input.
     assert!(inside(layout.label_row, layout.composer));
     assert!(inside(layout.input_box, layout.composer));
     assert!(inside(layout.tools_row, layout.composer));
@@ -66,6 +76,7 @@ fn layout_at_1440_matches_the_approved_composition() {
     assert!(inside(layout.send, layout.composer));
     assert!(inside(layout.model_chip, layout.composer));
     assert!(layout.input_box.size.y >= 130.0, "min input height");
+    assert_page_choices_clear_input(&layout);
     assert_close(layout.label_row.size.y, 41.0, 0.5);
     assert_close(
         layout.label_row.origin.y,
@@ -160,6 +171,7 @@ fn inside(inner: Rect, outer: Rect) -> bool {
 #[test]
 fn layout_at_1180_keeps_the_same_contracts_on_a_1164_column() {
     let layout = layout(1180.0, 820.0, HomeFamily::AppUi);
+    assert_page_choices_clear_input(&layout);
     assert_close(layout.tabs_row.origin.x, 8.0, 0.5);
     assert_close(layout.tabs_row.size.x, 1164.0, 0.5);
     // The ≤1180 tab gap drops to 8: (1164 − 48) / 7 ≈ 159.4, tabs stay
@@ -185,10 +197,11 @@ fn layout_at_1180_keeps_the_same_contracts_on_a_1164_column() {
 #[test]
 fn narrow_viewports_stack_the_panels() {
     let layout = layout(840.0, 900.0, HomeFamily::AppUi);
-    // Composer over preview, both full-width, 383 + 400 tall (the wide
+    // Composer over preview, both full-width, 395 + 400 tall (the wide
     // variant's stacked heights).
     assert!(layout.preview.origin.y > layout.composer.origin.y + layout.composer.size.y);
-    assert_close(layout.composer.size.y, 383.0, 0.5);
+    assert_close(layout.composer.size.y, 395.0, 0.5);
+    assert_page_choices_clear_input(&layout);
     assert_close(layout.preview.size.y, 400.0, 0.5);
     assert_close(layout.composer.origin.x, layout.preview.origin.x, 0.5);
     assert_close(layout.composer.size.x, layout.preview.size.x, 0.5);
