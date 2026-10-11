@@ -273,6 +273,11 @@ where
     };
     let spine = sidebar_spine(sidebar);
     let surface = spine.last().unwrap();
+    // This needs the assembled shell. Per-section echo must not spend model
+    // retries on a footer contract the shared cleanup can repair locally.
+    if let Some(line) = super::sidebar_navigation_diagnostic(surface) {
+        out.push(line);
+    }
     let shell_bottom = y + h - padding_bottom(root);
     let expected = shell_bottom
         - spine[..spine.len() - 1]

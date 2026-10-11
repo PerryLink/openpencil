@@ -38,11 +38,14 @@ mod app_shell_evict;
 mod app_shell_restructure;
 #[path = "app_shell_height_contract.rs"]
 mod height_contract;
+#[path = "app_shell_nav_flow.rs"]
+mod nav_flow;
 
 use app_shell_detect::*;
 pub(crate) use app_shell_evict::*;
 pub(crate) use app_shell_restructure::*;
 pub(crate) use height_contract::{height_contract_diagnostics, repair_height_contract};
+pub(crate) use nav_flow::sidebar_navigation_diagnostic;
 
 /// Fixed left-sidebar column width. Mirrors the surviving sizing constant in
 /// `dashboard_columns.rs` for parity with the removed scaffold.

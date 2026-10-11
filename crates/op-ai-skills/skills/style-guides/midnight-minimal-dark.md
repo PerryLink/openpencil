@@ -137,7 +137,7 @@ Key aesthetics:
 ### Layout Pattern
 
 - Screen width: 1440px
-- Sidebar: 240px wide, vertical, space_between, icon + text nav
+- Sidebar: 240px wide, vertical, space_between only between TWO groups: top {brand + icon/text nav, justifyContent=start}, bottom {account footer}. Never distribute brand/nav/footer as three siblings or center/end-align the menu.
 - Content area: width fill_container, height fit_content, vertical, gap 32-40, padding [28, 32]
 - Section spacing: generous gaps let content breathe
 - Sidebar indicator: 2px left border in sky blue on active item, subtle accent background
