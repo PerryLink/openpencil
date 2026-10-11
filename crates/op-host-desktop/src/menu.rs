@@ -2,7 +2,7 @@
 //!
 //! On macOS the native menu bar is built with `muda` and attached to
 //! the running NSApp. Menu selections arrive on `muda`'s global event
-//! channel; [`poll`] drains them into a [`MenuAction`] the runner maps
+//! callback; [`poll`] drains editor actions into a [`MenuAction`] the runner maps
 //! onto the same `WidgetHostNative` calls the keyboard shortcuts use.
 //!
 //! Windows and Linux have no native menu — the in-canvas File menu is
@@ -52,6 +52,10 @@ pub enum MenuAction {
     OpenGithub,
 }
 
+#[cfg(target_os = "macos")]
+#[path = "menu_native_edit.rs"]
+mod native_edit;
+
 // --------------------------------------------------------------------
 // macOS — the real `muda` backend.
 // --------------------------------------------------------------------
@@ -59,7 +63,7 @@ pub enum MenuAction {
 mod backend {
     use super::MenuAction;
     use muda::accelerator::{Accelerator, Code, Modifiers};
-    use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+    use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
     use op_editor_core::Locale;
 
     /// Resolve the UI locale the same way app startup does (persisted
@@ -145,6 +149,7 @@ mod backend {
     /// changes ([`AppMenu::set_recent_files`]).
     pub struct AppMenu {
         _menu: Menu,
+        _canvas_edits: Option<super::native_edit::CanvasEdits>,
         recent_submenu: Submenu,
         /// Locale resolved at build time — reused when the recent-file
         /// submenu is rebuilt so its empty-state row stays translated.
@@ -181,6 +186,7 @@ mod backend {
         /// re-labels live instead of waiting for the next launch
         /// (`init_for_nsapp` replaces the previous NSApp main menu).
         pub fn install_with_locale(window: &winit::window::Window, locale: Locale) -> Self {
+            super::native_edit::install(action_for_id);
             let menu = Menu::new();
 
             // macOS app menu — About / Services / Hide / Quit, the
@@ -232,27 +238,17 @@ mod backend {
             ]);
             let _ = menu.append(&file);
 
-            // Edit menu — custom items routed to the host's own
-            // selection / clipboard ops (the canvas is not a native
-            // text field, so `PredefinedMenuItem` copy/paste would be
-            // inert here).
+            // Standard editing selectors let native panels own their shortcuts.
+            // A responder bridge below routes canvas edits to the host.
             let edit = Submenu::new(tr(locale, "menu.edit"), true);
             let _ = edit.append_items(&[
-                &item(ID_UNDO, tr(locale, "toolbar.undo"), Some(accel(Code::KeyZ))),
-                &item(
-                    ID_REDO,
-                    tr(locale, "toolbar.redo"),
-                    Some(accel_shift(Code::KeyZ)),
-                ),
+                &PredefinedMenuItem::undo(Some(tr(locale, "toolbar.undo"))),
+                &PredefinedMenuItem::redo(Some(tr(locale, "toolbar.redo"))),
                 &PredefinedMenuItem::separator(),
-                &item(ID_CUT, tr(locale, "menu.cut"), Some(accel(Code::KeyX))),
-                &item(ID_COPY, tr(locale, "menu.copy"), Some(accel(Code::KeyC))),
-                &item(ID_PASTE, tr(locale, "menu.paste"), Some(accel(Code::KeyV))),
-                &item(
-                    ID_SELECT_ALL,
-                    tr(locale, "menu.selectAll"),
-                    Some(accel(Code::KeyA)),
-                ),
+                &PredefinedMenuItem::cut(Some(tr(locale, "menu.cut"))),
+                &PredefinedMenuItem::copy(Some(tr(locale, "menu.copy"))),
+                &PredefinedMenuItem::paste(Some(tr(locale, "menu.paste"))),
+                &PredefinedMenuItem::select_all(Some(tr(locale, "menu.selectAll"))),
                 &PredefinedMenuItem::separator(),
                 &item(
                     ID_DUPLICATE,
@@ -267,6 +263,7 @@ mod backend {
                 ),
             ]);
             let _ = menu.append(&edit);
+            let canvas_edits = super::native_edit::bind(window);
 
             // View menu.
             let view = Submenu::new(tr(locale, "menu.view"), true);
@@ -297,11 +294,11 @@ mod backend {
             let _ = menu.append(&help);
 
             // Attach to the platform.
-            let _ = window; // not needed — macOS attaches to the NSApp
             menu.init_for_nsapp();
 
             let this = Self {
                 _menu: menu,
+                _canvas_edits: canvas_edits,
                 recent_submenu,
                 locale,
             };
@@ -348,14 +345,7 @@ mod backend {
 
     /// Drain one pending menu selection, if any.
     pub fn poll() -> Option<MenuAction> {
-        while let Ok(event) = MenuEvent::receiver().try_recv() {
-            if let Some(action) = action_for_id(event.id.as_ref()) {
-                return Some(action);
-            }
-            // An unrecognized id (e.g. a predefined item handled
-            // natively) — skip it and keep draining.
-        }
-        None
+        super::native_edit::poll()
     }
 
     #[cfg(test)]
