@@ -370,3 +370,32 @@ fn an_already_visible_composer_is_left_where_the_reader_put_it() {
         "a visible composer must not move the page"
     );
 }
+
+#[test]
+fn home_vertical_arrows_move_select_and_respect_ime_and_modal_ownership() {
+    let mut host = desktop_home();
+    host.last_viewport_w = WIDE_W;
+    host.last_viewport_h = WIDE_H;
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .set_draft("abcd\nefgh\nijkl");
+    host.editor_state_mut().editor_ui.home.set_caret(12, 0);
+    assert!(host.apply_home_vertical_caret(false, false));
+    assert_eq!(host.editor_state().editor_ui.home.input.caret(), 7);
+    assert!(host.apply_home_vertical_caret(false, true));
+    assert_eq!(
+        host.editor_state().editor_ui.home.input.highlight_range(),
+        Some((2, 7))
+    );
+    host.editor_state_mut()
+        .editor_ui
+        .home
+        .input
+        .set_composition("ni", 2, 0);
+    let caret = host.editor_state().editor_ui.home.input.caret();
+    assert!(host.apply_home_vertical_caret(true, false));
+    assert_eq!(host.editor_state().editor_ui.home.input.caret(), caret);
+    host.editor_state_mut().editor_ui.agent_settings_open = true;
+    assert!(!host.apply_home_vertical_caret(true, false));
+}

@@ -176,3 +176,42 @@ fn long_line_end_composition_keeps_cached_and_fallback_ime_anchors_visible() {
         }
     }
 }
+
+#[test]
+fn home_vertical_navigation_reaches_rows_outside_the_visible_window_and_soft_wraps() {
+    for (compact, width) in [(false, 1180.0), (true, 320.0)] {
+        let text = "咖啡🙂菜单参考".repeat(70);
+        let mut state = state(compact, &text);
+        let mut backend = CaptureBackend::default();
+        let home = HomeSurface::for_editor(&state).unwrap();
+        let input = home.layout(width, 844.0).input_box;
+        let area = home.input_text_area("", input);
+        let rows = TextArea::layout_lines(
+            &mut backend,
+            &text,
+            FONT,
+            home.input_text_rect(input).size.x - 2.0 * area.pad_x,
+        );
+        assert!(rows.len() > area.max_visible_lines + 2);
+        state
+            .editor_ui
+            .home
+            .set_caret(rows[rows.len() - 2].start, 0);
+        for index in (1..rows.len() - 1).rev() {
+            let home = HomeSurface::for_editor(&state).unwrap();
+            let geometry = home.measure_input_geometry(&mut backend, width, 844.0);
+            let offset = geometry
+                .vertical_caret_offset(&home, width, 844.0, false)
+                .unwrap();
+            assert_eq!(offset, rows[index - 1].start);
+            assert!(text.is_char_boundary(offset));
+            state.editor_ui.home.set_caret(offset, 0);
+        }
+        let home = HomeSurface::for_editor(&state).unwrap();
+        assert_eq!(home.input_vertical_caret_offset(width, 844.0, false), 0);
+        assert_eq!(
+            home.input_vertical_caret_offset(width, 844.0, true),
+            rows[1].start
+        );
+    }
+}

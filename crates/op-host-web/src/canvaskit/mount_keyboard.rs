@@ -93,12 +93,14 @@ pub(super) fn register_keyboard_listeners(
                 "ArrowUp" if !is_mod && image_popover_open => consumed = true,
                 "ArrowDown" if !is_mod && image_popover_open => consumed = true,
                 "ArrowUp" if !is_mod => {
-                    consumed = b.host.apply_text_edit_vertical(false)
+                    consumed = b.host.apply_home_vertical_caret(false, shift)
+                        || b.host.apply_text_edit_vertical(false)
                         || b.host.apply_chat_input_vertical_caret(false, shift)
                         || b.host.apply_nudge(0.0, -nudge)
                 }
                 "ArrowDown" if !is_mod => {
-                    consumed = b.host.apply_text_edit_vertical(true)
+                    consumed = b.host.apply_home_vertical_caret(true, shift)
+                        || b.host.apply_text_edit_vertical(true)
                         || b.host.apply_chat_input_vertical_caret(true, shift)
                         || b.host.apply_nudge(0.0, nudge)
                 }

@@ -86,6 +86,52 @@ impl WidgetHost {
         Some(true)
     }
 
+    /// Move through displayed prompt rows, including soft wraps and rows outside the current clip.
+    pub fn apply_home_vertical_caret(&mut self, down: bool, extend: bool) -> bool {
+        if !self.editor_state.editor_ui.home_composer_owns_keyboard() {
+            return false;
+        }
+        if self
+            .editor_state
+            .editor_ui
+            .home
+            .input
+            .composition()
+            .is_some()
+        {
+            return true;
+        }
+        let surface =
+            op_editor_ui::widgets::HomeSurface::for_editor_at(&self.editor_state, self.now_ms)
+                .expect("visible Home owns keyboard");
+        let offset = self
+            .home_input_geometry
+            .as_ref()
+            .and_then(|geometry| {
+                geometry.vertical_caret_offset(
+                    &surface,
+                    self.last_viewport_w,
+                    self.last_viewport_h,
+                    down,
+                )
+            })
+            .unwrap_or_else(|| {
+                surface.input_vertical_caret_offset(
+                    self.last_viewport_w,
+                    self.last_viewport_h,
+                    down,
+                )
+            });
+        let home = &mut self.editor_state.editor_ui.home;
+        if extend {
+            home.input.drag_to(offset, self.now_ms);
+        } else {
+            home.set_caret(offset, self.now_ms);
+        }
+        self.mark_dirty();
+        true
+    }
+
     /// ← / → in the composer. `false` when Home does not own the caret.
     pub fn apply_home_caret(&mut self, forward: bool, extend: bool) -> bool {
         if !self.home_visible() || self.home_modal_open() {

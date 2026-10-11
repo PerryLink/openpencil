@@ -491,3 +491,24 @@ fn app_page_picker_controls_the_actual_example_boards_and_keeps_filled_examples(
         );
     }
 }
+
+#[test]
+fn home_vertical_arrows_edit_the_prompt_and_leave_modal_input_alone() {
+    let mut host = home_host();
+    host.editor_state
+        .editor_ui
+        .home
+        .set_draft("abcd\nefgh\nijkl");
+    host.editor_state.editor_ui.home.set_caret(12, 0);
+    assert!(host.apply_home_vertical_caret(false, false));
+    assert_eq!(host.editor_state.editor_ui.home.input.caret(), 7);
+    assert!(host.apply_home_vertical_caret(false, true));
+    assert_eq!(
+        host.editor_state.editor_ui.home.input.highlight_range(),
+        Some((2, 7))
+    );
+    assert!(host.apply_paste_text("新增"));
+    assert_eq!(host.editor_state.editor_ui.home.draft, "ab新增gh\nijkl");
+    host.editor_state.editor_ui.agent_settings_open = true;
+    assert!(!host.apply_home_vertical_caret(true, false));
+}

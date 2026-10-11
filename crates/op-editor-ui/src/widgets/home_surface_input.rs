@@ -21,12 +21,41 @@ pub struct HomeInputGeometry {
     text_rect: Rect,
     lines: Vec<MeasuredLine>,
     caret_rect: Rect,
+    vertical_offsets: [usize; 2],
 }
 
 #[derive(Debug, Clone)]
 struct MeasuredLine {
     end: usize,
     midpoints: Vec<(usize, f32)>,
+}
+
+impl MeasuredLine {
+    fn offset_at(&self, x: f32) -> usize {
+        self.midpoints
+            .iter()
+            .find(|(_, midpoint)| x < *midpoint)
+            .map_or(self.end, |(byte, _)| *byte)
+    }
+}
+
+fn measure_line(backend: &mut dyn RenderBackend, line: &TextLine, base_x: f32) -> MeasuredLine {
+    let mut x = base_x;
+    let midpoints = line
+        .text
+        .char_indices()
+        .map(|(byte, ch)| {
+            let mut buf = [0; 4];
+            let width = backend.measure_text_family(ch.encode_utf8(&mut buf), FONT, "Inter");
+            let midpoint = (line.start + byte, x + width / 2.0);
+            x += width;
+            midpoint
+        })
+        .collect();
+    MeasuredLine {
+        end: line.end,
+        midpoints,
+    }
 }
 
 impl HomeSurface<'_> {
@@ -94,25 +123,7 @@ impl HomeSurface<'_> {
             .iter()
             .skip(visible_start)
             .take(visible_count)
-            .map(|line| {
-                let mut x = base_x;
-                let midpoints = line
-                    .text
-                    .char_indices()
-                    .map(|(byte, ch)| {
-                        let mut buf = [0; 4];
-                        let width =
-                            backend.measure_text_family(ch.encode_utf8(&mut buf), FONT, "Inter");
-                        let midpoint = (line.start + byte, x + width / 2.0);
-                        x += width;
-                        midpoint
-                    })
-                    .collect();
-                MeasuredLine {
-                    end: line.end,
-                    midpoints,
-                }
-            })
+            .map(|line| measure_line(backend, line, base_x))
             .collect();
         let line = &wrapped[caret_line];
         let relative = prev_char_boundary(
@@ -121,6 +132,14 @@ impl HomeSurface<'_> {
         );
         let mut caret_x =
             base_x + backend.measure_text_family(&line.text[..relative], FONT, "Inter");
+        let vertical_offsets = [
+            caret_line.checked_sub(1).map_or(0, |index| {
+                measure_line(backend, &wrapped[index], base_x).offset_at(caret_x)
+            }),
+            wrapped.get(caret_line + 1).map_or(text.len(), |line| {
+                measure_line(backend, line, base_x).offset_at(caret_x)
+            }),
+        ];
         let composition = composition(&self.state.input);
         if let Some((text, cursor)) = &composition {
             caret_x += backend.measure_text_family(&text[..*cursor], FONT, "Inter");
@@ -139,6 +158,7 @@ impl HomeSurface<'_> {
             text_rect,
             lines,
             caret_rect,
+            vertical_offsets,
         }
     }
 
@@ -154,6 +174,12 @@ impl HomeSurface<'_> {
         let mut backend = super::super::text_input::MeasureOnlyBackend;
         self.measure_input_geometry(&mut backend, width, height)
             .ime_anchor_rect()
+    }
+
+    pub fn input_vertical_caret_offset(&self, width: f32, height: f32, down: bool) -> usize {
+        let mut backend = super::super::text_input::MeasureOnlyBackend;
+        self.measure_input_geometry(&mut backend, width, height)
+            .vertical_offsets[usize::from(down)]
     }
 }
 
@@ -183,12 +209,18 @@ impl HomeInputGeometry {
         let line = self
             .lines
             .get(row.min(self.lines.len().saturating_sub(1)))?;
-        Some(
-            line.midpoints
-                .iter()
-                .find(|(_, midpoint)| point.x < *midpoint)
-                .map_or(line.end, |(byte, _)| *byte),
-        )
+        Some(line.offset_at(point.x))
+    }
+
+    pub fn vertical_caret_offset(
+        &self,
+        surface: &HomeSurface<'_>,
+        width: f32,
+        height: f32,
+        down: bool,
+    ) -> Option<usize> {
+        self.matches(surface, width, height)
+            .then_some(self.vertical_offsets[usize::from(down)])
     }
 
     pub fn caret_rect(&self, surface: &HomeSurface<'_>, width: f32, height: f32) -> Option<Rect> {

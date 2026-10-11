@@ -95,6 +95,14 @@ impl DesktopApp {
             {
                 consumed = self.host.apply_home_caret(true, self.shift_modifier);
             }
+            Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown)
+                if home_composer_owns_keyboard && !self.zoom_modifier =>
+            {
+                consumed = self.host.apply_home_vertical_caret(
+                    matches!(logical_key, Key::Named(NamedKey::ArrowDown)),
+                    self.shift_modifier,
+                );
+            }
             Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown) if home_composer_owns_keyboard => {
                 consumed = true;
             }

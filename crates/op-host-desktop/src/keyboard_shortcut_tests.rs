@@ -111,3 +111,39 @@ fn closing_settings_with_cmd_comma_does_not_leave_import_shortcuts_blocked() {
     app.handle_key_pressed(&Key::Character("f".into()), Some("f"));
     assert!(app.host.editor_state().editor_ui.figma_import_open);
 }
+
+#[test]
+fn home_vertical_arrow_keys_reach_the_prompt_caret_and_shift_selection() {
+    use winit::keyboard::NamedKey;
+    let mut app = DesktopApp::new(None);
+    app.host.apply_press(0.0, 0.0, 1440.0, 900.0);
+    let home = &mut app.host.editor_state_mut().editor_ui.home;
+    home.visible = true;
+    home.composer_focused = true;
+    home.set_draft("abcd\nefgh\nijkl");
+    home.set_caret(12, 0);
+    app.handle_key_pressed(&Key::Named(NamedKey::ArrowUp), None);
+    assert_eq!(app.host.editor_state().editor_ui.home.input.caret(), 7);
+    app.shift_modifier = true;
+    app.handle_key_pressed(&Key::Named(NamedKey::ArrowUp), None);
+    assert_eq!(
+        app.host
+            .editor_state()
+            .editor_ui
+            .home
+            .input
+            .highlight_range(),
+        Some((2, 7))
+    );
+    app.shift_modifier = false;
+    app.handle_key_pressed(&Key::Named(NamedKey::ArrowDown), None);
+    assert_eq!(app.host.editor_state().editor_ui.home.input.caret(), 7);
+    assert!(app
+        .host
+        .editor_state()
+        .editor_ui
+        .home
+        .input
+        .highlight_range()
+        .is_none());
+}
