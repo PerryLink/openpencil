@@ -145,7 +145,7 @@ fn run_density(sink: &mut VecDocSink) {
 }
 
 #[test]
-fn app01_three_by_three_reflows_to_five_plus_four_after_density() {
+fn app01_three_by_three_preserves_rows_after_density() {
     let rows = (0..3)
         .map(|index| row(&format!("row-{index}"), &["美食", "超市", "水果"]))
         .collect();
@@ -168,16 +168,16 @@ fn app01_three_by_three_reflows_to_five_plus_four_after_density() {
 
     let reflowed = node_json(&sink, "category-grid");
     let rows = reflowed["children"].as_array().expect("rows");
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 3);
     assert_eq!(rows[0]["id"], before_row_ids[0]);
     assert_eq!(rows[1]["id"], before_row_ids[1]);
-    assert_eq!(rows[0]["children"].as_array().unwrap().len(), 5);
-    assert_eq!(rows[1]["children"].as_array().unwrap().len(), 4);
+    assert_eq!(rows[2]["id"], before_row_ids[2]);
     assert_eq!(rows[0]["gap"], 12.0);
     assert_eq!(rows[0]["justifyContent"], "start");
     assert_eq!(rows[0]["width"], "fill_container");
     assert_eq!(rows[0]["height"], "fit_content");
     for row in rows {
+        assert_eq!(row["children"].as_array().unwrap().len(), 3);
         assert_eq!(row["gap"], 12.0);
         assert_eq!(row["justifyContent"], "start");
         for tile in row["children"].as_array().unwrap() {
@@ -350,7 +350,7 @@ fn cleanup_driver_reports_density_checkpoint_once() {
     assert!(summary.records().iter().any(|record| {
         record
             .detail
-            .starts_with("category-grid-reflow · 分类九宫格 · 3×3 → 5+4")
+            .starts_with("category-grid-reflow · 分类九宫格 · 3×3 → 3+3+3")
             && record.detail.contains("numeric tile width(s) dropped")
     }));
     assert_eq!(

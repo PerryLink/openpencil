@@ -483,6 +483,9 @@ fn numeric_tile_width_count(value: &Value) -> usize {
 }
 
 fn category_grid_target_row_lengths(tile_count: usize) -> Vec<usize> {
+    if tile_count == 9 {
+        return vec![3, 3, 3];
+    }
     if matches!(tile_count % 5, 1 | 2) {
         let row_count = tile_count.div_ceil(5);
         let base = tile_count / row_count;

@@ -1,4 +1,4 @@
-//! Reflow sparse mobile category grids into five-column rows.
+//! Balance sparse mobile category grids while preserving nine-cell grids.
 
 use crate::types::DocSink;
 use op_editor_core::{EditorCommand, NodeId, PenNodeExt};
@@ -179,6 +179,11 @@ fn reflow_grid(sink: &mut dyn DocSink, grid_id: &str) -> bool {
 }
 
 fn target_row_lengths(tile_count: usize) -> Vec<usize> {
+    // A nine-cell grid is an intentional 3x3 composition. Long mobile
+    // content can scroll; density repair must not rewrite it into 5+4.
+    if tile_count == 9 {
+        return vec![3, 3, 3];
+    }
     if matches!(tile_count % 5, 1 | 2) {
         let row_count = tile_count.div_ceil(5);
         let base = tile_count / row_count;
