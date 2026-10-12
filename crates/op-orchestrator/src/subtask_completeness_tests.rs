@@ -248,6 +248,37 @@ fn chinese_nine_cell_grid_counts_cells_and_detects_one_missing() {
 }
 
 #[test]
+fn column_major_grids_count_cells_without_forcing_a_row_rewrite() {
+    for (rows, columns, label) in [(3, 3, "分类九宫格"), (2, 3, "2×3 分类网格")] {
+        for missing in [false, true] {
+            let cols = (0..columns)
+                .map(|c| {
+                    let count = rows - usize::from(missing && c == columns - 1);
+                    json!({"type":"frame","id":format!("col-{c}"),"layout":"vertical",
+                    "children":(0..count).map(|r|card(c*rows+r)).collect::<Vec<_>>()})
+                })
+                .collect::<Vec<_>>();
+            let sink = sink_with_section(vec![json!({"type":"frame","id":"grid",
+                "layout":"horizontal","children":cols})]);
+            let outcome = SubtaskOutcome {
+                id: "grid".into(),
+                node_count: 1,
+                error: None,
+                inserted_root_ids: vec!["section".into()],
+                headline: None,
+                subtask: None,
+            };
+            let failure = incomplete_attempt(&sink, &subtask(label, None), &outcome);
+            if missing {
+                assert_eq!(failure.unwrap().delivered, rows * columns - 1);
+            } else {
+                assert!(failure.is_none());
+            }
+        }
+    }
+}
+
+#[test]
 fn mixed_inline_and_component_items_share_the_resolved_delivery_family() {
     let mut rows = (0..3)
         .map(|i| json!({"type":"ref","id":format!("instance-{i}"),"ref":"master"}))

@@ -303,9 +303,8 @@ fn grid_dimensions(text: &str) -> Option<(usize, usize)> {
         .max_by_key(|&(r, c)| r * c)
 }
 
-/// A row-major grid's cells may be nested under row wrappers, so its largest
-/// sibling family is only the column count. Sum cells only for the explicitly
-/// promised row shape; ordinary list metadata must not multiply the item count.
+/// Grid cells may be grouped by rows or columns. Sum cells only for the
+/// explicitly promised shape; list metadata must not multiply the item count.
 fn delivered_grid_cells(node: &PenNode, rows: usize, columns: usize) -> usize {
     if !is_node_visible(node) || crate::cleanup::is_status_bar(node) {
         return 0;
@@ -315,10 +314,16 @@ fn delivered_grid_cells(node: &PenNode, rows: usize, columns: usize) -> usize {
         .iter()
         .filter(|n| is_node_visible(n) && is_item_node(n))
         .collect();
+    let (group_count, cell_count, group_layout) = if matches!(node, PenNode::Frame(f) if f.container.layout == Some(LayoutMode::Horizontal))
+    {
+        (columns, rows, LayoutMode::Vertical)
+    } else {
+        (rows, columns, LayoutMode::Horizontal)
+    };
     let mut total = 0;
-    if groups.len() == rows
+    if groups.len() == group_count
         && groups.iter().all(
-            |n| matches!(n,PenNode::Frame(f) if f.container.layout==Some(LayoutMode::Horizontal)),
+            |n| matches!(n,PenNode::Frame(f) if f.container.layout.as_ref()==Some(&group_layout)),
         )
     {
         let counts: Vec<_> = groups
@@ -332,7 +337,7 @@ fn delivered_grid_cells(node: &PenNode, rows: usize, columns: usize) -> usize {
                     .count()
             })
             .collect();
-        if counts.iter().all(|&n| n <= columns) {
+        if counts.iter().all(|&n| n <= cell_count) {
             total = counts.into_iter().sum();
         }
     }
