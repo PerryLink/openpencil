@@ -76,6 +76,7 @@ mod cleanup_status_bar;
 mod motion_recipes;
 #[path = "sibling_style_drift.rs"]
 mod sibling_style_drift;
+use cleanup_status_bar::remove_duplicate_status_bars;
 pub(crate) use cleanup_status_bar::{is_status_bar, is_status_bar_from_json};
 pub(crate) use sibling_style_drift::structural_signature;
 #[path = "finalize_enforce_status_bar.rs"]
@@ -117,32 +118,6 @@ pub fn descendant_count(state: &EditorState, root_id: &str) -> usize {
         .find(|n| n.id_str() == root_id)
         .map(count_descendants)
         .unwrap_or(0)
-}
-
-/// Pass ①:移动端重复状态栏去重。scaffold 注入了一个固定状态栏,
-/// 若某个 sub-agent 又生成了状态栏,根下就会有多个 —— 保留第一个,
-/// 删掉其余。对齐 TS `removeDuplicateStatusBars`。
-fn remove_duplicate_status_bars(sink: &mut dyn DocSink, root_id: &str) {
-    let dupes: Vec<NodeId> = {
-        let Some(root) = find_root(sink.state(), root_id) else {
-            return;
-        };
-        let Some(children) = root.children() else {
-            return;
-        };
-        children
-            .iter()
-            .filter(|c| is_status_bar(c))
-            .skip(1) // 保留第一个
-            .map(|c| NodeId::new(c.id_str().to_string()))
-            .collect()
-    };
-    for id in dupes {
-        sink.apply(EditorCommand::DeleteNode {
-            node_id: id,
-            page_id: None,
-        });
-    }
 }
 
 pub(crate) fn remove_duplicate_bottom_nav_sections_for_all_roots(sink: &mut dyn DocSink) {

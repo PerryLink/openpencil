@@ -582,3 +582,19 @@ fn plan_with_one_chart() -> OrchestratorPlan {
         Some("左侧折线图（近30日营收趋势）"),
     )])
 }
+
+#[test]
+fn home_prompt_wrapper_does_not_become_a_required_screen() {
+    let brief = "外卖 App 三个页面（各 375×812，每页一个独立屏幕）：首页（地址+搜索+分类九宫格+商家列表五个）、商家详情页（头图+评分行+菜品列表六个带价格与加购按钮+底部购物车栏）、订单确认页（地址卡+商品清单+费用明细+提交按钮）。三页必须齐全。";
+    let bare = required_sections(brief);
+    let wrapped = required_sections(&format!("请设计三页手机界面。\n\n用户需求：{brief}"));
+    assert_eq!(
+        wrapped, bare,
+        "Home's envelope must not trigger a destructive re-plan"
+    );
+    assert!(!wrapped
+        .iter()
+        .any(|s| s.contains('：') || s.contains("外卖 App")));
+    assert!(wrapped.iter().any(|s| s.contains("商家详情")));
+    assert!(wrapped.iter().any(|s| s.contains("订单确认")));
+}

@@ -17,7 +17,8 @@ static CJK_PARTS: LazyLock<Regex> = LazyLock::new(|| {
         .expect("valid CJK numbered-parts pattern")
 });
 static CJK_COLON: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[：:]\s*([^。；\n]*、[^。；\n]+)").expect("valid CJK colon-enumeration pattern")
+    Regex::new(r"[：:]\s*([^。；\n：:]*、[^。；\n：:]+)")
+        .expect("valid CJK colon-enumeration pattern")
 });
 static CJK_SPLIT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"、|，|以及|及|与|和").expect("valid CJK item split"));

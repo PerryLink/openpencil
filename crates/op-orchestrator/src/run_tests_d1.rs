@@ -431,6 +431,7 @@ fn concurrent_validation_enabled_emits_validation_done() {
         ScriptResponse::Text(MULTI_SCREEN_PLAN_JSON.into()),
         ScriptResponse::Text(node_json_mobile("login")),
         ScriptResponse::Text(node_json_mobile("home")),
+        ScriptResponse::Text(node_json_mobile("bottom-nav")),
     ]);
     let mut sink = VecDocSink::new();
     let mut events: Vec<Progress> = Vec::new();
@@ -460,7 +461,7 @@ fn concurrent_validation_enabled_emits_validation_done() {
     ))
     .expect("concurrent validation run ok");
 
-    assert_eq!(summary.subtasks.len(), 2);
+    assert_eq!(summary.subtasks.len(), 3);
 
     let has_cleanup = events.iter().any(|e| matches!(e, Progress::CleanupDone));
     let has_validation_done = events

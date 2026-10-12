@@ -41,6 +41,70 @@ pub(crate) fn is_status_bar_from_json(node: &serde_json::Value) -> bool {
     )
 }
 
+/// Keep scaffold chrome and remove a duplicate at the start of a full-width
+/// whole-screen shell. Do not recurse into cards or nested phone mockups.
+pub(super) fn remove_duplicate_status_bars(sink: &mut dyn crate::types::DocSink, root_id: &str) {
+    use op_editor_core::{EditorCommand, NodeId};
+    let ids = {
+        let Some(root) = op_editor_core::walkers::find_node(
+            sink.state().active_children(),
+            &NodeId::new(root_id),
+        ) else {
+            return;
+        };
+        let Some(children) = root.children() else {
+            return;
+        };
+        let mut ids: Vec<_> = children
+            .iter()
+            .filter(|node| is_status_bar(node))
+            .skip(1)
+            .map(|node| NodeId::new(node.id_str()))
+            .collect();
+        if root
+            .width_px()
+            .is_some_and(|w| (240.0..=480.0).contains(&w))
+            && children.first().is_some_and(is_status_bar)
+        {
+            for shell in children.iter().filter(|node| !is_status_bar(node)) {
+                let Ok(value) = serde_json::to_value(shell) else {
+                    continue;
+                };
+                if value.get("layout").and_then(serde_json::Value::as_str) != Some("vertical")
+                    || value.get("width").and_then(serde_json::Value::as_str)
+                        != Some("fill_container")
+                    || value.get("height").and_then(serde_json::Value::as_str)
+                        != Some("fit_content")
+                    || value.get("role").is_some()
+                    || value.get("constraints").is_some()
+                    || value.get("x").is_some()
+                    || value.get("y").is_some()
+                    || value.get("padding").is_some()
+                {
+                    continue;
+                }
+                if let Some(bar) = shell
+                    .children()
+                    .and_then(|nodes| nodes.first())
+                    .filter(|node| {
+                        is_status_bar(node)
+                            && node.height_px().is_some_and(|h| (20.0..=96.0).contains(&h))
+                    })
+                {
+                    ids.push(NodeId::new(bar.id_str()));
+                }
+            }
+        }
+        ids
+    };
+    for node_id in ids {
+        sink.apply(EditorCommand::DeleteNode {
+            node_id,
+            page_id: None,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +147,33 @@ mod tests {
                 "typed predicate disagreed on {value}"
             );
         }
+    }
+
+    #[test]
+    fn duplicate_status_at_whole_screen_shell_start_is_removed() {
+        use crate::test_support::VecDocSink;
+        use op_editor_core::{EditorCommand, NodeId};
+        let mut sink = VecDocSink::new();
+        let tree: PenNode = serde_json::from_value(json!({"type":"frame","id":"root","width":375,"height":812,"children":[
+            {"type":"frame","id":"status","name":"Status Bar","height":62},
+            {"type":"frame","id":"body","name":"Home","layout":"vertical","width":"fill_container","height":"fit_content","children":[
+                {"type":"frame","id":"duplicate","name":"status-bar","height":44},
+                {"type":"text","id":"content","content":"Keep this content"}
+            ]},
+            {"type":"frame","id":"mockup","name":"Phone mockup","width":200,"height":420,"layout":"vertical","children":[
+                {"type":"frame","id":"mockup-status","name":"status-bar","height":24}
+            ]}
+        ]})).unwrap();
+        sink.state.apply(EditorCommand::InsertSubtree {
+            nodes: vec![tree],
+            parent_id: NodeId::NONE,
+            page_id: None,
+        });
+        let id = sink.state.active_children()[0].id_str().to_string();
+        remove_duplicate_status_bars(&mut sink, &id);
+        let root = &sink.state.active_children()[0];
+        assert_eq!(root.children().unwrap().len(), 3);
+        assert_eq!(root.children().unwrap()[1].children().unwrap().len(), 1);
+        assert_eq!(root.children().unwrap()[2].children().unwrap().len(), 1);
     }
 }

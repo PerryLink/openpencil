@@ -256,3 +256,53 @@ fn a_chinese_bottom_nav_is_recognised_and_not_doubled() {
         "the planned Chinese tab bar is the only one"
     );
 }
+
+#[test]
+fn multiscreen_whole_page_plan_gets_nav_only_for_home() {
+    let mut plan = mobile_plan(
+        "App",
+        &[
+            ("home", "首页"),
+            ("detail", "商家详情"),
+            ("checkout", "订单确认"),
+        ],
+    );
+    for st in &mut plan.subtasks {
+        st.screen = Some(st.label.clone());
+        st.region.height = 812.0;
+    }
+    normalize(
+        &mut plan,
+        &request("外卖 App 三个页面：首页、商家详情、订单确认。"),
+    );
+    let navs: Vec<_> = plan
+        .subtasks
+        .iter()
+        .filter(|st| is_bottom_nav_subtask(st))
+        .collect();
+    assert_eq!(navs.len(), 1);
+    assert_eq!(navs[0].screen.as_deref(), Some("首页"));
+    assert_eq!(navs[0].parent_frame_id.as_deref(), Some("root-首页"));
+    normalize(
+        &mut plan,
+        &request("外卖 App 三个页面：首页、商家详情、订单确认。"),
+    );
+    assert_eq!(
+        plan.subtasks
+            .iter()
+            .filter(|st| is_bottom_nav_subtask(st))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn multiscreen_nav_backstop_honors_explicit_opt_out() {
+    let mut plan = mobile_plan("App", &[("home", "首页"), ("detail", "商家详情")]);
+    for st in &mut plan.subtasks {
+        st.screen = Some(st.label.clone());
+        st.region.height = 812.0;
+    }
+    normalize(&mut plan, &request("首页和详情，不需要底部导航"));
+    assert!(!has_bottom_nav(&plan));
+}

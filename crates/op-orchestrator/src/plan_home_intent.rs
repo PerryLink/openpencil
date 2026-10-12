@@ -9,7 +9,11 @@ pub(super) fn plan_is_app_home_screen(plan: &OrchestratorPlan) -> bool {
         return false;
     }
 
-    let name = normalize_screen_name(&plan.root_frame.name);
+    screen_is_app_home(&plan.root_frame.name)
+}
+
+pub(super) fn screen_is_app_home(name: &str) -> bool {
+    let name = normalize_screen_name(name);
     let secondary_flow = [
         "detail",
         "details",
@@ -32,13 +36,28 @@ pub(super) fn plan_is_app_home_screen(plan: &OrchestratorPlan) -> bool {
     if secondary_flow {
         return false;
     }
+    if ["详情", "确认", "登录", "注册", "结算", "支付", "表单"]
+        .iter()
+        .any(|marker| name.contains(marker))
+    {
+        return false;
+    }
 
     // Preserve the legacy substring behavior for established primary-screen
     // markers. Planner names commonly compact these into HomeScreen,
     // Newsfeed, Discovery, or Browser.
-    ["home", "feed", "discover", "browse", "dashboard"]
-        .iter()
-        .any(|marker| name.contains(marker))
+    [
+        "home",
+        "feed",
+        "discover",
+        "browse",
+        "dashboard",
+        "首页",
+        "主页",
+        "发现",
+    ]
+    .iter()
+    .any(|marker| name.contains(marker))
         || ["main screen", "now screen"]
             .iter()
             .any(|phrase| screen_name_has_phrase(&name, phrase))

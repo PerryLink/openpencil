@@ -97,3 +97,49 @@ fn ordinary_trailing_content_is_not_misidentified_as_fixed_chrome() {
         assert_eq!(sink.state().doc, before);
     }
 }
+
+#[test]
+fn nested_whole_screen_cart_is_promoted_without_losing_content() {
+    let mut draft = state(
+        json!({"type":"frame","id":"root","width":375,"height":812,"layout":"vertical","children":[
+            {"type":"frame","id":"status","name":"Status Bar","width":"fill_container","height":62},
+            {"type":"frame","id":"shell","width":"fill_container","height":"fit_content","layout":"vertical","children":[
+                {"type":"frame","id":"menu","width":"fill_container","height":1000,"layout":"vertical","gap":24,"children":[{"type":"text","id":"dish","content":"All six dishes stay available"}]},
+                {"type":"frame","id":"cart","name":"购物车栏","width":"fill_container","height":64,"layout":"horizontal","children":[
+                    {"type":"frame","id":"checkout","role":"button","height":44,"events":{"onTap":[{"push":"\"/checkout\""}]}}
+                ]}
+            ]}
+        ]}),
+    );
+    let mut sink = crate::loop_finalize::StateDocSink { state: &mut draft };
+    repair(&mut sink, "root");
+    let scene = op_pen_loader::editor_state_to_active_page_layout_scene(sink.state());
+    let page = scene.active_page().unwrap();
+    assert!(page.find("cart").unwrap().bounds.origin.y + 64.0 <= 813.0);
+    assert_eq!(page.find("menu").unwrap().bounds.size.y, 1000.0);
+    assert!(page.find("dish").is_some());
+    let root = find_root(sink.state(), "root").unwrap();
+    assert_eq!(root.children().unwrap().last().unwrap().id_str(), "cart");
+    assert!(crate::geometry_validation::fixed_board_content_diagnostics(sink.state()).is_empty());
+    let before = sink.state().doc.clone();
+    repair(&mut sink, "root");
+    assert_eq!(before, sink.state().doc);
+}
+
+#[test]
+fn nested_card_action_is_not_promoted_as_screen_chrome() {
+    let mut draft = state(
+        json!({"type":"frame","id":"root","width":375,"height":812,"layout":"vertical","children":[
+            {"type":"frame","id":"card","role":"card","width":"fill_container","layout":"vertical","children":[
+                {"type":"text","id":"body","height":1000,"content":"Product details"},
+                {"type":"frame","id":"footer","role":"cart-bar","width":"fill_container","height":64,"children":[
+                    {"type":"frame","id":"button","role":"button","height":44}
+                ]}
+            ]}
+        ]}),
+    );
+    let before = draft.doc.clone();
+    let mut sink = crate::loop_finalize::StateDocSink { state: &mut draft };
+    assert!(!super::super::mobile_scroll::repair(&mut sink, "root"));
+    assert_eq!(sink.state().doc, before);
+}
