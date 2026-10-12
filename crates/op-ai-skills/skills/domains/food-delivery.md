@@ -13,11 +13,13 @@ FOOD DELIVERY / TAKEOUT — what the leading apps converge on. Sources: Baymard 
 
 SCOPE FIRST: a single cafe/brand ordering home is not a multi-store marketplace. Use the supplied store/pickup details, one hero drink, the supplied menu and compact categories. Skip reorder history, flash deals, multi-store lists and delivery metadata unless requested. Never treat the numeric examples below as facts; unknown ratings, distance, sales and discounts must be omitted.
 
-The look comes from FOOD PHOTOGRAPHY, not from painted blocks. Store header images lift sales up to 50%, logos 23%, dish photos 30-44%, dish descriptions 18% (DoorDash). So every store, dish and category visual is an `image` with a specific `imagePrompt` + `imageSearchQuery` ("mapo tofu in clay bowl, overhead"). Dish shots share one angle: overhead, 1:1, warm light. Accent colour is only for prices, add buttons, the checkout CTA, the active tab and promo tag text. At most ONE block per screen has an accent fill.
+Food photography carries the appetite: give stores and dishes specific `imagePrompt` + `imageSearchQuery` values ("mapo tofu in clay bowl, overhead"). Dish shots share one angle, crop and lighting. Category navigation uses ONE coherent icon/illustration family; photographic categories are optional only when a matching set is available, not unrelated stock thumbnails in circles. Keep store-list labels on the page surface; reserve text-over-photo for one deliberate hero with a subtle scrim. Accent colour is for prices, add buttons, checkout, active tabs and promo text; at most ONE large accent-filled block per screen.
+
+Multi-screen continuity: reuse the selected store identity, dish names and unit prices from home through menu and checkout. Derive each line subtotal and the final total from one basket; the fee-card total and submit-bar total must match. Do not invent different prices or merchants on the next screen.
 
 HOME, top to bottom:
 1. Address + search as one block. Address row: pin icon, 12px "送至", 15-16px semibold address, chevron. Then a full-width 40-44px search field whose placeholder carries a benefit ("满30减12 · 搜索美食"; 美团 puts the discount in the search box).
-2. 金刚区 categories: 5 per row, 8-10 items, two rows max. Each visual is a 48-52px FOOD image (round cut-out dish or 3D illustration via imagePrompt), NOT a line glyph on a tinted tile: a box around the icon lowers recognition (优设). Label 12px, ≤4 CJK chars. The first row reads strongest (美团 puts the key entries there).
+2. Category navigation: honor exact counts first — 九宫格 is nine entries in 3×3. Otherwise choose 4-5 columns for the given labels. Use one consistent 40-48px icon or illustration family with 12px labels; keep colors restrained and strokes/scale consistent. No independent stock-photo collage. Preserve the grid and scroll lower content instead of changing the requested inventory.
 3. Order again: returning users look for reorder on the home page (Baymard; DoorDash "Order Again"). Use a horizontal row of 2-3 recent stores, each with photo, name and a small "再来一单" button.
 4. One promo moment: a flash deal with REAL countdown digits as plain text ("02:15:38", tabular cells), a deal price beside a struck-through price, and one dish photo. Not an empty orange slab.
 5. Sort/filter row: 综合排序 · 距离 · 销量 · 筛选, chips 32-36px. About half of users filter sometimes (Baymard).
@@ -43,9 +45,9 @@ STORE PAGE:
   - "月售 1260" 12px muted.
   - Price 17-18px bold, with an optional struck-through original.
   - 28-32px accent circle "+" at the bottom-right; it becomes a − 1 + stepper once the dish is in the cart. Padding keeps the touch target at least 44px (HIG).
-- Cart bar: a floating dark pill, 56-60px tall, radius full, inset 12-16px from the sides and bottom.
+- Cart bar: `role="cart-bar"`, outside the scroll body as the final root sibling. A floating dark pill, 56-60px tall, radius full, inset 12-16px from the sides and bottom. Checkout's persistent submit area uses `role="bottom-action-bar"` with the same viewport ownership.
   - Cart disc 44-48px overlapping the pill's left edge, with an 18px count badge.
   - Total 18-20px bold white, then "另需配送费¥3" 11-12px.
   - Checkout CTA on the right. Below the minimum order, show "还差¥8起送" in place of the CTA (饿了么 shortfall prompt).
 
-DO NOT: draw line icons on tinted squares for food categories; give every store row an identical white shadow card; paint the whole header orange; leave dish or store photos out; use more than one accent-filled block per screen.
+DO NOT: mix photo, emoji and unrelated icon styles within one category grid; give every store row an identical white shadow card; paint the whole header orange; leave dish or store photos out; change merchant or basket facts between screens; use more than one large accent-filled block per screen.

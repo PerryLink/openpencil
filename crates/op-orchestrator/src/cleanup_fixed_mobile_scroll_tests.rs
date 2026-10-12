@@ -1,0 +1,99 @@
+//! Regressions from the GLM food delivery draft: wrapped nav and checkout bars.
+use super::*;
+use serde_json::json;
+
+fn phone(footer: Value) -> EditorState {
+    state(
+        json!({"type":"frame","id":"root","width":375,"height":812,"layout":"vertical","gap":16,"children":[
+            {"type":"frame","id":"status","name":"Status Bar","height":62,"width":"fill_container"},
+            {"type":"frame","id":"content","width":"fill_container","height":"fit_content","layout":"vertical","gap":24,"padding":[24,24],"children":[
+                {"type":"text","id":"first","content":"First merchant","height":460,"fontSize":20},
+                {"type":"text","id":"last","content":"Fifth merchant","height":360,"fontSize":20}
+            ]},footer
+        ]}),
+    )
+}
+
+fn assert_preserved_and_pinned(draft: &mut EditorState) {
+    let original = serde_json::to_value(&draft.doc).unwrap();
+    let mut sink = crate::loop_finalize::StateDocSink { state: draft };
+    repair(&mut sink, "root");
+    let scene = op_pen_loader::editor_state_to_active_page_layout_scene(sink.state());
+    let page = scene.active_page().unwrap();
+    let footer = page.find("footer").unwrap().bounds;
+    assert!(
+        footer.origin.y >= 680.0 && footer.origin.y + footer.size.y <= 813.0,
+        "{footer:?}"
+    );
+    assert_eq!(page.find("status").unwrap().bounds.origin.y, 0.0);
+    let value = serde_json::to_value(&sink.state().doc).unwrap();
+    let children = value["children"][0]["children"].as_array().unwrap();
+    assert_eq!(children.len(), 3);
+    assert_eq!(children[0], original["children"][0]["children"][0]);
+    assert_eq!(children[1]["role"], "scroll-area");
+    assert_eq!(
+        children[1]["children"][0], original["children"][0]["children"][1],
+        "preserve spacing, type and all content"
+    );
+    assert_eq!(
+        children[2], original["children"][0]["children"][2],
+        "preserve footer visuals and events"
+    );
+    assert!(crate::geometry_validation::fixed_board_content_diagnostics(sink.state()).is_empty());
+    let before = sink.state().doc.clone();
+    repair(&mut sink, "root");
+    assert_eq!(
+        sink.state().doc,
+        before,
+        "intentional scroll content must not be compressed on replay"
+    );
+}
+
+#[test]
+fn wrapped_nav_preserves_status_and_content_spacing() {
+    let mut draft = phone(
+        json!({"type":"frame","id":"footer","name":"首页 · 底部导航","width":"fill_container","height":"fit_content","layout":"vertical","children":[
+            {"type":"rectangle","id":"line","height":1,"width":"fill_container"},
+            {"type":"frame","id":"tabs","role":"bottom-tab-bar","width":"fill_container","height":72,"layout":"horizontal","children":[
+                {"type":"text","id":"home","content":"首页","height":20},
+                {"type":"text","id":"orders","content":"订单","height":20},
+                {"type":"text","id":"profile","content":"我的","height":20}
+            ]}
+        ]}),
+    );
+    assert_preserved_and_pinned(&mut draft);
+}
+
+#[test]
+fn cart_and_checkout_bars_are_preserved_outside_scroll_content() {
+    for name in ["商家详情 · 底部购物车栏", "cart-bar", "底部提交区"] {
+        let mut draft = phone(
+            json!({"type":"frame","id":"footer","name":name,"width":"fill_container","height":"fit_content","layout":"vertical","padding":[0,16],"children":[
+                {"type":"frame","id":"checkout","width":"fill_container","height":60,"layout":"horizontal","children":[
+                    {"type":"text","id":"price","content":"¥28","fontSize":18},
+                    {"type":"frame","id":"buy","role":"button","width":100,"height":44,"events":{"onTap":[{"toast":"Checkout"}]},"children":[
+                        {"type":"text","id":"label","content":"去结算","fontSize":16}
+                    ]}
+                ]}
+            ]}),
+        );
+        assert_preserved_and_pinned(&mut draft);
+    }
+}
+
+#[test]
+fn ordinary_trailing_content_is_not_misidentified_as_fixed_chrome() {
+    for (name, action) in [("Card", true), ("cart-bar", false)] {
+        let mut footer = json!({"type":"frame","id":"footer","name":name,"height":60,"width":"fill_container","children":[
+            {"type":"text","id":"tail-copy","content":"More content","fontSize":16}
+        ]});
+        if action {
+            footer["events"] = json!({"onTap":[{"toast":"Read more"}]});
+        }
+        let mut draft = phone(footer);
+        let before = draft.doc.clone();
+        let mut sink = crate::loop_finalize::StateDocSink { state: &mut draft };
+        assert!(!super::super::mobile_scroll::repair(&mut sink, "root"));
+        assert_eq!(sink.state().doc, before);
+    }
+}

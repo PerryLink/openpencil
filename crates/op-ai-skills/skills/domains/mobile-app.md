@@ -71,7 +71,7 @@ Rules:
 - First 1-2 elements must answer "where am I" + "what can I do here"
 - Mobile top rhythm: keep header/title close to the first useful control or content; use 20-32px, not an empty hero-sized band.
 - Section header actions: prefer a 20px `chevron-right` / `arrow-right` icon, not visible "See all", "View all", "查看全部", or "查看更多" text.
-- Category sections: section root and chip row both use height="fit_content". Use a header row, then chip row/grid. Chip row uses gap 12 and justifyContent start even when there are only two categories; never space_between/space_around. A category grid (九宫格) on a 375 root is 5 per row (4 only when a label exceeds 4 CJK / 8 Latin characters), at most two rows above the fold, ≤150px tall in total: each item = 40–44px tonal icon container + one 11–12px label, gap 8–12, no stroke, no card box. Show full items or wrap; no half-clipped item.
+- Category sections: section root and chip row both use height="fit_content". Chip rows use gap 12 and justifyContent start. Preserve the requested count and arrangement: 九宫格 means exactly nine items in a 3×3 grid, never ten items in 5×2. Without an explicit grid, choose columns for the actual item count and label width. Each item uses one consistent 40–44px icon/illustration treatment + a 12px label, gap 8–12, no card box. Let the page scroll instead of squeezing every category and list row above the fold.
 - Product card rows: two equal `fill_container` cards, gap 12, inside the content rail; no fixed-width clipped second card.
 - List rows of [thumbnail, text stack]: alignItems="center" on the row — a missing alignItems top-pins the text against a taller thumbnail and leaves a dead band under it.
 - Corner badge on an image ("-35%", "NEW"): a CHILD of the image's wrapper frame with explicit x/y (e.g. x=8, y=8) — never a card-level sibling between the image and the content column (it renders straddling the seam).
@@ -80,7 +80,7 @@ Rules:
 - Exact user mobile tokens win: "圆角 8px / 间距 12px" means ordinary radius=8 and repeated gaps=12.
 - Title font size must be uniform across ALL screens in the app
 - Design for one-handed use: primary actions in lower half
-- When the screen is explicitly a fixed viewport, use at most one clipped content viewport; otherwise keep the content wrapper Hug Height. Avoid nested scrolls.
+- For an explicitly fixed phone viewport, reserve status chrome and the bottom tab/action bar first; ordinary sections go in ONE `role="scroll-area"`, `height="fill_container"`, `clipContent:true` body with non-empty `events.onScroll`. Keep the bottom bar as a root sibling outside that body. Preserve readable spacing; never shrink the entire list to fit the first screenshot. Content-driven pages otherwise keep Hug Height.
 - Touch targets: minimum 44x44px
 - Do not repeat the same predictable mobile stack of search + categories + orange promo + two cards. Choose a distinct concept for the domain and let the handed-off archetype carry the personality.
 

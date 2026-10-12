@@ -1,4 +1,4 @@
-//! Keep a fixed phone's navigation visible when its content needs scrolling.
+//! Keep a fixed phone's navigation and action bars visible while content scrolls.
 use super::*;
 use serde_json::{json, Value};
 
@@ -21,10 +21,13 @@ pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> bool {
     let Some(children) = value.get("children").and_then(Value::as_array) else {
         return false;
     };
-    let Some(nav) = children
-        .last()
-        .filter(|n| n.get("role").and_then(Value::as_str) == Some("bottom-tab-bar"))
-    else {
+    // Chrome normalization tags the INNER tab row, not the outer wrapper
+    // containing its divider/safe area. Recognize that same whole section.
+    let Some(nav) = children.last().filter(|_| {
+        root.children()
+            .and_then(|nodes| nodes.last())
+            .is_some_and(is_bottom_chrome)
+    }) else {
         return false;
     };
     let Some(nav_id) = nav.get("id").and_then(Value::as_str) else {
@@ -39,14 +42,14 @@ pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> bool {
     };
     if nav_rect.bounds.origin.y + nav_rect.bounds.size.y
         <= board.bounds.origin.y + board.bounds.size.y + 1.0
-        || !(44.0..=96.0).contains(&nav_rect.bounds.size.y)
+        || !(44.0..=128.0).contains(&nav_rect.bounds.size.y)
     {
         return false;
     }
     let prefix = usize::from(
         children
             .first()
-            .is_some_and(|c| c.get("role").and_then(Value::as_str) == Some("status-bar")),
+            .is_some_and(crate::cleanup::is_status_bar_from_json),
     );
     let middle = &children[prefix..children.len() - 1];
     // Reserve the complete child row plus chrome padding. A centered row
@@ -161,4 +164,39 @@ pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) -> bool {
         });
     }
     true
+}
+
+fn is_bottom_chrome(node: &PenNode) -> bool {
+    if crate::cleanup::is_trailing_bottom_nav_section(node) {
+        return true;
+    }
+    // A cart/checkout bar is persistent chrome too, but an ordinary last
+    // button or card must not become a pinned footer just because it is last.
+    let identity = crate::cleanup::node_identity_haystack(node);
+    let action_bar = matches!(
+        node.base().role.as_deref(),
+        Some("bottom-action-bar" | "cart-bar" | "checkout-bar" | "submit-bar")
+    ) || [
+        "cart-bar",
+        "cartbar",
+        "cart bar",
+        "checkout-bar",
+        "bottom action",
+        "bottom-action",
+        "submit-bar",
+        "底部购物车",
+        "底部操作栏",
+        "底部提交",
+    ]
+    .iter()
+    .any(|name| identity.contains(name));
+    node.is_container() && action_bar && has_action(node)
+}
+
+fn has_action(node: &PenNode) -> bool {
+    matches!(node.base().role.as_deref(), Some("button" | "icon-button"))
+        || crate::wire_screen_navigation::node_has_events(node)
+        || node
+            .children()
+            .is_some_and(|children| children.iter().any(has_action))
 }

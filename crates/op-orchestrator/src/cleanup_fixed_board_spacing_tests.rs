@@ -4,6 +4,9 @@ use serde_json::json;
 #[path = "cleanup_mobile_bounds_replay_tests.rs"]
 mod mobile_bounds_replay;
 
+#[path = "cleanup_fixed_mobile_scroll_tests.rs"]
+mod mobile_scroll_contract;
+
 fn state(root: Value) -> EditorState {
     EditorState::from_document(
         serde_json::from_value(json!({"version":"1.0.0","children":[root]})).unwrap(),

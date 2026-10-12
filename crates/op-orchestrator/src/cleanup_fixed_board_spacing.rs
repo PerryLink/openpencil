@@ -7,6 +7,11 @@ use serde_json::Value;
 mod mobile_scroll;
 
 pub(super) fn repair(sink: &mut dyn DocSink, root_id: &str) {
+    // A phone is a viewport, not a poster. Preserve the authored rhythm and
+    // scroll long content before spending its spacing to fit a single image.
+    if mobile_scroll::repair(sink, root_id) {
+        return;
+    }
     for _ in 0..12 {
         let Some(root) = find_root(sink.state(), root_id) else {
             return;
@@ -91,11 +96,23 @@ fn flow_bottom(value: &Value, scene: &jian_scene::layout_scene::SceneNode) -> f6
             .and_then(|id| scene.find(id))
         {
             bottom = bottom.max((node.bounds.origin.y + node.bounds.size.y) as f64);
-            bottom = bottom.max(flow_bottom(child, node));
+            // Intentional scroll overflow must not trigger repeated spacing
+            // compression when finalization is run again.
+            if !is_scroll_viewport(child) {
+                bottom = bottom.max(flow_bottom(child, node));
+            }
         }
     }
     let padding = padding(value);
     bottom + padding[2]
+}
+
+fn is_scroll_viewport(node: &Value) -> bool {
+    node.get("clipContent").and_then(Value::as_bool) == Some(true)
+        && matches!(
+            node.get("role").and_then(Value::as_str),
+            Some("scroll" | "scroll-area" | "scroll-viewport" | "viewport")
+        )
 }
 
 fn padding(node: &Value) -> [f64; 4] {
