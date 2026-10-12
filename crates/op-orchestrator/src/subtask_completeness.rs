@@ -18,7 +18,7 @@ const ENGLISH_ITEM_WORDS: &str =
 /// The exact retry message used when a promised repeated-item section is short.
 pub(crate) fn completeness_feedback(expected: usize, delivered: usize) -> String {
     format!(
-        "The plan asks for {expected} items in this section; only {delivered} were delivered — emit all {expected} as sibling items."
+        "The plan asks for {expected} items in this section; only {delivered} were delivered — preserve the planned grid/list layout and emit all {expected} items."
     )
 }
 
@@ -283,7 +283,10 @@ fn is_item_node(node: &PenNode) -> bool {
 }
 
 fn grid_dimensions(text: &str) -> Option<(usize, usize)> {
-    if !text.to_ascii_lowercase().contains("grid") {
+    if text.contains("九宫格") {
+        return Some((3, 3));
+    }
+    if !text.to_ascii_lowercase().contains("grid") && !text.contains("网格") {
         return None;
     }
     static GRID: LazyLock<Regex> = LazyLock::new(|| {

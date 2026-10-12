@@ -211,6 +211,43 @@ fn nested_grid_counts_cells_without_multiplying_ordinary_row_metadata() {
 }
 
 #[test]
+fn chinese_nine_cell_grid_counts_cells_and_detects_one_missing() {
+    for missing in [false, true] {
+        let rows = (0..3)
+            .map(|r| {
+                let count = if missing && r == 2 { 2 } else { 3 };
+                json!({"type":"frame","id":format!("row-{r}"),"layout":"horizontal",
+                "children":(0..count).map(|c| card(r*3+c)).collect::<Vec<_>>()})
+            })
+            .collect();
+        let sink = sink_with_section(rows);
+        let outcome = SubtaskOutcome {
+            id: "grid".into(),
+            node_count: 1,
+            error: None,
+            inserted_root_ids: vec!["section".into()],
+            headline: None,
+            subtask: None,
+        };
+        for label in ["首页 分类九宫格", "3×3 分类网格，共九项"] {
+            let task = subtask(label, None);
+            assert_eq!(expected_item_count(&task), Some(9));
+            let failure = incomplete_attempt(&sink, &task, &outcome);
+            if missing {
+                assert_eq!(failure.unwrap().delivered, 8);
+            } else {
+                assert!(failure.is_none(), "a complete grid must not be retried");
+            }
+        }
+    }
+    assert_eq!(
+        expected_item_count(&subtask("375×812 手机页面", None)),
+        None
+    );
+    assert_eq!(expected_item_count(&subtask("标题“九宫格”", None)), None);
+}
+
+#[test]
 fn mixed_inline_and_component_items_share_the_resolved_delivery_family() {
     let mut rows = (0..3)
         .map(|i| json!({"type":"ref","id":format!("instance-{i}"),"ref":"master"}))
