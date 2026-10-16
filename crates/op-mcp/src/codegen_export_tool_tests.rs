@@ -71,9 +71,11 @@ fn defaults_to_react_tailwind_with_theme_files_and_cross_page_masters() {
 
 #[test]
 fn output_is_byte_stable_and_other_targets_are_selectable() {
-    let first = json(call(&state(), &[("framework", "react-tailwind")]));
-    let second = json(call(&state(), &[("framework", "react-tailwind")]));
-    assert_eq!(first, second);
+    for target in ["react", "react-tailwind"] {
+        let first = json(call(&state(), &[("framework", target)]));
+        let second = json(call(&state(), &[("framework", target)]));
+        assert_eq!(first, second, "{target}");
+    }
     let vue = json(call(&state(), &[("framework", "vue"), ("pageId", "p1")]));
     assert_eq!(vue["nodeCount"], 2);
     assert!(vue["files"]["component.vue"]
@@ -85,6 +87,7 @@ fn output_is_byte_stable_and_other_targets_are_selectable() {
         .as_str()
         .unwrap()
         .contains("--card"));
+    assert!(codegen_export_targets().contains(&"react"));
     assert!(codegen_export_targets().contains(&"react-tailwind"));
     assert!(codegen_export_targets().contains(&"css-variables"));
 }
@@ -95,7 +98,21 @@ fn selection_scopes_the_export_when_no_ids_are_given() {
     state.set_single_selection(NodeId::new("other"));
     let out = json(call(&state, &[]));
     assert_eq!(out["nodeCount"], 1);
-    assert!(out["code"].as_str().unwrap().contains("function Other()"));
+    let code = out["code"].as_str().unwrap();
+    assert!(code.contains("function Other()"));
+    assert!(
+        !code.contains("Buy"),
+        "unselected component content leaked: {code}"
+    );
+
+    let react = json(call(&state, &[("framework", "react")]));
+    assert_eq!(react["nodeCount"], 1);
+    let code = react["code"].as_str().unwrap();
+    assert!(code.contains("width: 100"), "{code}");
+    assert!(
+        !code.contains("Buy"),
+        "unselected component content leaked: {code}"
+    );
 }
 
 #[test]

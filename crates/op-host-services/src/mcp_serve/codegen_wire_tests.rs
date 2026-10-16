@@ -178,6 +178,21 @@ fn codegen_plan_validation_failure_uses_ts_error_envelope() {
 }
 
 #[test]
+fn codegen_export_is_registered_as_a_read_only_wire_tool() {
+    let mut state = codegen_state();
+    let response = dispatch(
+        &mut state,
+        r#"{"jsonrpc":"2.0","id":71,"method":"tools/call","params":{"name":"codegen_export","arguments":{"framework":"html","nodeIds":"n1"}}}"#,
+    );
+    let value: serde_json::Value =
+        serde_json::from_str(&crate::mcp_serve::tool_text(&response)).unwrap();
+    assert_eq!(value["framework"], "html");
+    assert_eq!(value["nodeCount"], 1);
+    assert!(value["code"].as_str().unwrap().contains("Hello"));
+    assert!(value["files"]["component.html"].is_string());
+}
+
+#[test]
 fn codegen_export_round_trips_over_the_tools_call_wire() {
     let mut state = codegen_state();
     let line = r#"{"jsonrpc":"2.0","id":71,"method":"tools/call","params":{"name":"codegen_export","arguments":{"framework":"react-tailwind","nodeIds":"n2"}}}"#;
