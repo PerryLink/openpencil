@@ -12,11 +12,15 @@ pub(super) fn grid_dimensions(text: &str) -> Option<(usize, usize)> {
     if text.contains("九宫格") {
         return Some((3, 3));
     }
-    if !text.to_ascii_lowercase().contains("grid") && !text.contains("网格") {
-        return None;
-    }
+    // Rows and columns named together are a grid shape on their own: the
+    // astra-new2 florist plan said "严格两列两行四张实拍照片卡" without the
+    // word 网格, the delivered 2×2 was counted as its two rows, and the
+    // section was retried and dropped as "4 items, only 2 delivered".
     if let Some(dimensions) = explicit_dimensions(text) {
         return Some(dimensions);
+    }
+    if !text.to_ascii_lowercase().contains("grid") && !text.contains("网格") {
+        return None;
     }
     static GRID: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)(\d[\d,]*)\s*[x×]\s*(\d[\d,]*)").expect("valid grid-count pattern")
@@ -39,8 +43,8 @@ pub(super) fn grid_dimensions(text: &str) -> Option<(usize, usize)> {
 fn explicit_dimensions(text: &str) -> Option<(usize, usize)> {
     static PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         [
-            r"(?P<rows>\d[\d,]*)\s*行\s*(?:[x×]\s*)?(?P<columns>\d[\d,]*)\s*列",
-            r"(?P<columns>\d[\d,]*)\s*列\s*(?:[x×]\s*)?(?P<rows>\d[\d,]*)\s*行",
+            r"(?P<rows>\d[\d,]*|[一二两三四五六七八九十]+)\s*行\s*(?:[x×]\s*)?(?P<columns>\d[\d,]*|[一二两三四五六七八九十]+)\s*列",
+            r"(?P<columns>\d[\d,]*|[一二两三四五六七八九十]+)\s*列\s*(?:[x×]\s*)?(?P<rows>\d[\d,]*|[一二两三四五六七八九十]+)\s*行",
             r"(?i)(?P<rows>\d[\d,]*)\s*rows?\s*(?:[x×]\s*)?(?P<columns>\d[\d,]*)\s*columns?\b",
             r"(?i)(?P<columns>\d[\d,]*)\s*columns?\s*(?:[x×]\s*)?(?P<rows>\d[\d,]*)\s*rows?\b",
         ]

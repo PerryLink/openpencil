@@ -57,3 +57,14 @@ fn explicit_rows_and_columns_wording_wins_over_bare_pairs() {
     assert_eq!(grid_dimensions("日期网格 6行7列"), Some((6, 7)));
     assert_eq!(grid_dimensions("7 列 × 6 行 网格"), Some((6, 7)));
 }
+
+/// astra-new2 a4 rep-2: no 网格 word, Chinese numerals, columns first.
+#[test]
+fn rows_and_columns_named_in_chinese_numerals_shape_a_grid() {
+    let elements = "过往花束标题，严格两列两行四张实拍照片卡，分别使用共享示例花束身份与日期；每卡仅照片、名称、日期";
+    assert_eq!(grid_dimensions(elements), Some((2, 2)));
+    assert_eq!(expected_item_count(&task("过往花束", elements)), Some(4));
+    assert_eq!(grid_dimensions("三行两列图标入口"), Some((3, 2)));
+    // A row count alone is not a grid.
+    assert_eq!(grid_dimensions("标题两行，正文三行"), None);
+}
