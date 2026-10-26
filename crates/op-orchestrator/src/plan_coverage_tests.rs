@@ -613,3 +613,41 @@ fn home_prompt_wrapper_does_not_become_a_required_screen() {
     assert!(wrapped.iter().any(|s| s.contains("商家详情")));
     assert!(wrapped.iter().any(|s| s.contains("订单确认")));
 }
+
+const CINEMA_BRIEF: &str = "独立影院排片与票务 Web 控制台（1440×900）：左侧窄导航栏（总览、排片、影片、会员、卖品、报表）；顶部今日概览四个指标卡；中部左侧「今日排片」时间轴；中部右侧「正在热映」竖排三部影片卡；下方左右两栏：「近 7 日票房」折线图与「场次明细」表格（片名、影厅、开场时间、已售/座位、状态胶囊）。";
+
+/// astra-new2 w3 rep-1 / rep-2: the lower two-column panel was planned as one
+/// subtask; the gate called each quoted item missing and appended a copy.
+#[test]
+fn a_panel_carrying_the_quoted_title_covers_its_chart_and_table() {
+    use crate::plan_coverage_quoted::quoted_title_subtask;
+    let p = plan(vec![subtask(
+        "revenue-details",
+        "票房趋势与场次明细",
+        Some("下方左右两栏。左栏含近7日票房标题、人民币单位、七日横轴、奶油黄折线和七个数据点；右栏场次明细，列为片名、影厅、开场时间、已售/座位、状态胶囊。"),
+    )]);
+    for section in ["「近 7 日票房」折线图", "「场次明细」表格"] {
+        assert_eq!(
+            quoted_title_subtask(section, &p).as_deref(),
+            Some("revenue-details"),
+            "{section}"
+        );
+    }
+    let required: Vec<String> = required_sections(CINEMA_BRIEF)
+        .into_iter()
+        .filter(|s| s.contains("近 7 日票房") || s.contains("场次明细"))
+        .collect();
+    assert!(!required.is_empty(), "the brief names both lower panels");
+    assert!(missing_sections(&required, &p).is_empty(), "{required:?}");
+}
+
+#[test]
+fn a_missing_or_short_quoted_title_does_not_cover() {
+    use crate::plan_coverage_quoted::quoted_title_subtask;
+    let p = plan(vec![subtask("chart", "票房趋势", Some("七日折线图"))]);
+    assert_eq!(quoted_title_subtask("「近 7 日票房」折线图", &p), None);
+    // Two-character titles are ordinary words.
+    let p = plan(vec![subtask("list", "商品列表", Some("热门商品排行"))]);
+    assert_eq!(quoted_title_subtask("「热门」标签", &p), None);
+    assert_eq!(quoted_title_subtask("近 7 日票房折线图", &p), None);
+}

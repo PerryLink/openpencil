@@ -212,6 +212,12 @@ pub fn check_coverage(required: &[String], plan: &OrchestratorPlan) -> CoverageC
                 .push((section.clone(), id, CoverageSource::Text));
             continue;
         }
+        if let Some(id) = crate::plan_coverage_quoted::quoted_title_subtask(section, plan) {
+            check
+                .covered_by
+                .push((section.clone(), id, CoverageSource::Text));
+            continue;
+        }
         if let Some(id) = core_covering_subtask(section, plan) {
             check
                 .covered_by
