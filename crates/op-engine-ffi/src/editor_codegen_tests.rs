@@ -389,3 +389,26 @@ fn synthetic_framework_change_cancels_before_late_done_can_be_folded() {
     assert_eq!(host.editor_state().codegen.phase, CodegenPhase::Error);
     assert!(runtime.results.is_empty());
 }
+
+#[test]
+fn stale_hosted_epoch_discards_codegen_completion_before_results_are_staged() {
+    let mut host = WidgetHostNative::new();
+    let identity = document_identity(&host);
+    let (mut worker, tx) = session(Framework::React, identity);
+    worker.hosted_session_epoch = Some(0);
+    let cancel = worker.cancel.clone();
+    tx.send(CodegenDelta::Progress(Default::default())).unwrap();
+    host.editor_state_mut().codegen.phase = CodegenPhase::Generating;
+    let mut runtime = MobileCodegenHost {
+        current: Some(worker),
+        document_identity: Some(identity),
+        results: Default::default(),
+        artifacts: Default::default(),
+    };
+    assert!(runtime.pump(&mut host, 0).is_none());
+    assert!(cancel.load(std::sync::atomic::Ordering::Acquire));
+    assert!(runtime.current.is_none());
+    assert_eq!(host.editor_state().codegen.phase, CodegenPhase::Error);
+    assert!(host.editor_state().codegen.error.is_some());
+    assert!(runtime.drain_artifact(&host).is_none());
+}

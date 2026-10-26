@@ -86,6 +86,7 @@ fn cfg(
         system_prompt: "You edit the live design.".into(),
         history: Vec::<(ChatHistoryRole, String)>::new(),
         user_prompt: "apply the requested design change".into(),
+        attachments: Vec::new(),
         max_output_tokens: 256,
         tools: vec![tool],
         executor,

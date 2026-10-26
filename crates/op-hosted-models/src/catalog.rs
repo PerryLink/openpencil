@@ -76,6 +76,9 @@ pub(super) fn parse(
                 .collect::<String>()
         );
         // Intersect server capabilities with this host's implemented transport.
+        // Hosted Billing currently rejects unpriced vision before reservation,
+        // even when an underlying upstream supports images. Do not advertise
+        // vision until that contract and the client wire are both supported.
         let capabilities = HostedModelCapabilities {
             image_input: false,
             tools: false,

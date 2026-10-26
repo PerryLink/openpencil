@@ -543,6 +543,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "Thất bại: {error}",
         "generator.starterCardGrid" => "Trình tạo lưới thẻ",
         "generator.starterCalendar" => "Trình tạo lịch",
+        "ai.referenceImagesInvalid" => "Ảnh tham chiếu phải là tệp PNG, JPEG, GIF hoặc WebP không rỗng.",
+        "ai.referenceImagesTooLarge" => "Ảnh tham chiếu vượt quá giới hạn kích thước hoặc số lượng tệp đính kèm.",
+        "ai.referenceImagesUnsupported" => "Mô hình đã chọn không hỗ trợ ảnh tham chiếu. Hãy chọn mô hình hỗ trợ hình ảnh hoặc xóa tệp đính kèm.",
         "ai.hostedTransportUnavailable" => "OpenPencil Hosted không khả dụng trong phiên này. Hãy đăng nhập lại hoặc chọn mô hình khác.",
         _ => return None,
     })

@@ -33,6 +33,7 @@ editor = [
   "dep:op-ai-skills",
   "dep:op-builtin-model-discovery",
   "dep:op-chat-agent",
+  "dep:op-hosted-models",
   "dep:op-collab-host",
   "dep:op-collab-transport",
   "dep:op-editor-host-core",
@@ -52,6 +53,8 @@ editor = [
 # Local-only authentication for the iOS / Android editor shells. This forwards
 # the explicit debug-only archive lane without enabling it in shipping builds.
 mobile-auth-dev = ["op-host-native/mobile-auth-dev"]
+# Local-only Hosted auth capability for debug mobile archives.
+mobile-hosted-dev = ["mobile-auth-dev", "op-hosted-models/dev-hosted"]
 # Debug fault seams; only meaningful with debug_assertions (never ship).
 debug-hooks = []
 
@@ -93,6 +96,7 @@ op-editor-host-core = { path = "../op-editor-host-core", default-features = fals
   "chat",
   # Shared generation worker/results plus deterministic code/bundle artifacts.
   "codegen",
+  "design",
 ], optional = true }
 # Transport-free chat shapes + the shared SSE payload parsers the mobile
 # chat pump streams through (`op_ai::chat_sse`), plus the shared tool-call
@@ -103,6 +107,7 @@ op-ai = { path = "../op-ai", optional = true }
 # tool loop with corrective budgets, 15-tool surface with per-batch quality
 # feedback, loop finalize plumbing.
 op-chat-agent = { path = "../op-chat-agent", optional = true }
+op-hosted-models = { path = "../op-hosted-models", optional = true }
 # Shared image-slot detection + write-back, plus (feature `net`) the
 # Openverse/Wikimedia resolution ladder behind the mobile image-search pump.
 op-image-enrich = { path = "../op-image-enrich", features = [

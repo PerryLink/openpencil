@@ -28,6 +28,7 @@ pub(super) fn start_design_turn(
         system_prompt: turn.system_prompt,
         history: turn.history,
         user_prompt: turn.prompt,
+        attachments: turn.attachments,
         max_output_tokens: turn.max_output_tokens,
         tools: mobile_design_tool_defs(),
         executor: Arc::new(executor),
@@ -95,9 +96,13 @@ pub(super) fn start_design_turn(
         session: ChatSession::from_channels(std_rx, Some(tool_rx)).into_design_loop(),
         document_identity: (0, 0),
         running_tab,
+        running_tab_identity: 0,
+        running_message_index: 0,
+        workspace_epoch: None,
         abort: Some(task.abort_handle()),
         indicator_epoch: Some(epoch),
         page_edit_fence: None,
+        bound_page_id: None,
         document_mutated: false,
     })
 }

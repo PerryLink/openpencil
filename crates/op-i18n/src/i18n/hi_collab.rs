@@ -535,6 +535,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "विफल: {error}",
         "generator.starterCardGrid" => "कार्ड ग्रिड जनरेटर",
         "generator.starterCalendar" => "कैलेंडर जनरेटर",
+        "ai.referenceImagesInvalid" => "संदर्भ चित्र खाली न होने वाली PNG, JPEG, GIF या WebP फ़ाइलें होने चाहिए।",
+        "ai.referenceImagesTooLarge" => "संदर्भ चित्र संलग्नकों के आकार या संख्या की सीमा से अधिक हैं।",
+        "ai.referenceImagesUnsupported" => "चुना गया मॉडल संदर्भ चित्रों का समर्थन नहीं करता। चित्रों का समर्थन करने वाला मॉडल चुनें या संलग्नक हटाएँ।",
         "ai.hostedTransportUnavailable" => "इस सत्र में OpenPencil Hosted उपलब्ध नहीं है। फिर से साइन इन करें या कोई अन्य मॉडल चुनें।",
         _ => return None,
     })

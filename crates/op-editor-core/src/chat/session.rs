@@ -224,6 +224,7 @@ impl ChatState {
     /// Start a fresh chat transcript and ask the host to abort any
     /// in-flight worker tied to the previous conversation.
     pub fn new_chat(&mut self) {
+        self.runtime_instance = ChatInstanceId::default();
         self.messages.clear();
         self.title = DEFAULT_CHAT_TITLE.to_string();
         self.input.set_text("");

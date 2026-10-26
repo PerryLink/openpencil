@@ -26,6 +26,8 @@ pinned-skia-binaries = ["op-engine-ffi/pinned-skia-binaries"]
 # Local-only authentication for Android editor builds. The underlying bridge
 # rejects unsigned archives outside Cargo's debug profile.
 mobile-auth-dev = ["op-engine-ffi/mobile-auth-dev"]
+# Additional opt-in for an unsigned local Hosted ABI-v4 archive.
+mobile-hosted-dev = ["op-engine-ffi/mobile-hosted-dev"]
 
 [dependencies]
 op-engine-ffi = { path = "../op-engine-ffi" }

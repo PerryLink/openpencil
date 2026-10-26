@@ -23,6 +23,7 @@ fn cancel_interrupts_a_silent_structured_edit_transport() {
             system_prompt: String::new(),
             history: Vec::new(),
             prompt: String::new(),
+            attachments: Vec::new(),
             max_output_tokens: 8192,
         },
     };
@@ -90,13 +91,23 @@ fn replacing_the_document_drops_queued_edits_and_deltas_before_applying_or_final
                 session
             };
             let mut chat = MobileChatHost {
+                hosted_design: Default::default(),
                 turn: Some(ChatTurnJob {
                     session,
                     document_identity: identity,
                     running_tab: 0,
+                    running_tab_identity: host.editor_state().chat.instance_id(),
+                    running_message_index: host
+                        .editor_state()
+                        .chat
+                        .messages
+                        .len()
+                        .saturating_sub(1),
+                    workspace_epoch: lifetime::workspace_epoch(host.editor_state()),
                     abort: None,
                     indicator_epoch: None,
                     page_edit_fence: Some(vec!["board".into()]),
+                    bound_page_id: None,
                     document_mutated: false,
                 }),
             };

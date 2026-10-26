@@ -35,6 +35,7 @@ fn capture_agent_body(model: &str) -> Value {
         system_prompt: "You are a design editor.".into(),
         history: Vec::new(),
         user_prompt: "continue the design".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![update_node_tool_def()],
         executor,

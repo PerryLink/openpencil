@@ -53,6 +53,7 @@ fn glm_and_deepseek_second_requests_never_carry_screenshot_base64() {
             system_prompt: "You are a design editor.".into(),
             history: Vec::new(),
             user_prompt: "render and check".into(),
+            attachments: Vec::new(),
             max_output_tokens: 6_144,
             tools: vec![get_screenshot_tool_def()],
             executor: executor.clone(),

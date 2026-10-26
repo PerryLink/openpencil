@@ -45,13 +45,21 @@ impl ChatProvider for HostedProvider {
                 .into_iter(),
             );
         }
+        // Reject unsupported input before private authorization or any network
+        // work. The caller can retain its draft and choose a compatible model.
+        let (path, body) = match request_body(&self.route, request) {
+            Ok(body) => body,
+            Err(error) => {
+                return Box::new([ChatDelta::Error(error.to_string())].into_iter());
+            }
+        };
         let session = self.session.clone();
         let epoch = self.epoch;
         let subject = self.subject.clone();
         let route = self.route.clone();
         let (tx, rx) = mpsc::channel(64);
         let worker_cancel = cancel.clone();
-        let task = crate::chat_runtime::shared_runtime().spawn(async move {
+        let task = op_chat_agent::runtime::shared_runtime().spawn(async move {
             let operation = async {
                 if worker_cancel.load(Ordering::Acquire) {
                     return Err(HostedRuntimeError::Cancelled);
@@ -68,7 +76,6 @@ impl ChatProvider for HostedProvider {
                         return Err(HostedRuntimeError::RouteUnavailable);
                     }
                 }
-                let (path, body) = request_body(&route, request)?;
                 if worker_cancel.load(Ordering::Acquire) {
                     return Err(HostedRuntimeError::Cancelled);
                 }
@@ -109,7 +116,7 @@ impl ChatProvider for HostedProvider {
                 }
             }
         });
-        Box::new(crate::chat_runtime::BlockingRecvIter::cancellable(
+        Box::new(op_chat_agent::blocking_recv::BlockingRecvIter::cancellable(
             rx, cancel, task,
         ))
     }
@@ -160,7 +167,7 @@ pub(super) fn request_body(
                     .unwrap()
                     .insert(0, json!({"role":"system","content":request.system_prompt}));
             }
-            crate::chat_builtin_http::apply_reasoning_wire_control(
+            op_chat_agent::backoff::apply_reasoning_wire_control(
                 &mut body,
                 route.model_id(),
                 request.thinking == op_ai::chat_provider::ThinkingMode::Disabled,

@@ -72,6 +72,8 @@ mod editor_chat_design;
 #[cfg(feature = "editor")]
 mod editor_chat_design_tools;
 #[cfg(feature = "editor")]
+mod editor_chat_hosted_design;
+#[cfg(feature = "editor")]
 mod editor_chat_turn;
 #[cfg(feature = "editor")]
 mod editor_chat_workspace;

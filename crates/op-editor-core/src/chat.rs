@@ -22,6 +22,7 @@
 //! - `messages` — `impl ChatState` per-message card state, per-turn
 //!   selectors and attachments
 
+mod instance;
 pub mod message;
 mod messages;
 pub mod models;
@@ -29,6 +30,7 @@ mod session;
 #[cfg(test)]
 mod tests;
 
+pub use instance::ChatInstanceId;
 pub use message::{ChatImage, ChatMessage, ChatRole, ChatToolCall};
 pub use models::{AgentProvider, ModelEntry};
 
@@ -185,6 +187,10 @@ impl LaunchRoute {
 /// (messages, input draft, focused flag, panel anchor, model catalog).
 #[derive(Debug, Clone)]
 pub struct ChatState {
+    /// Runtime identity for a conversation. Hosts bind asynchronous results to
+    /// this value instead of a tab index that can be reused after closing a tab.
+    /// It is never persisted; snapshots retain the identity through `Clone`.
+    pub runtime_instance: ChatInstanceId,
     pub messages: Vec<ChatMessage>,
     /// Short label shown in the floating chat panel header.
     pub title: String,
@@ -329,6 +335,7 @@ fn alloc_image_id() -> u64 {
 impl Default for ChatState {
     fn default() -> Self {
         Self {
+            runtime_instance: ChatInstanceId::default(),
             messages: Vec::new(),
             title: DEFAULT_CHAT_TITLE.to_string(),
             input: TextInputState::default(),

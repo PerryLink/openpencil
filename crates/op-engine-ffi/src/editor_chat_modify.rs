@@ -6,6 +6,21 @@ use op_ai::chat_provider::{ChatProvider, ChatRequest, ChatToolResult, ThinkingMo
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+#[derive(Debug)]
+pub(super) enum ModifyLaunchError {
+    RuntimeUnavailable,
+    TargetUnavailable,
+}
+impl std::fmt::Display for ModifyLaunchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::RuntimeUnavailable => "chat runtime is unavailable",
+            Self::TargetUnavailable => "the page to edit is no longer available",
+        })
+    }
+}
+impl std::error::Error for ModifyLaunchError {}
+
 struct MobileModifyProvider {
     turn: BuiltinChatTurn,
     runtime: &'static Runtime,
@@ -43,6 +58,7 @@ impl ChatProvider for MobileModifyProvider {
             system_prompt: request.system_prompt,
             history: request.history,
             prompt: request.user_message,
+            attachments: request.attachments,
             max_output_tokens: request.max_output_tokens,
         };
         let task = self
@@ -94,22 +110,48 @@ pub(super) fn start_modify_turn(
     target_frame_ids: Vec<String>,
     running_tab: usize,
 ) -> Result<ChatTurnJob, String> {
+    let runtime = chat_runtime().map_err(|error| format!("error: {error}"))?;
+    let attachments = turn.attachments.clone();
+    let model = Some(turn.model.clone());
+    let provider = Box::new(MobileModifyProvider { turn, runtime });
+    start_provider_modify_turn(
+        state,
+        provider,
+        instruction,
+        target_frame_ids,
+        attachments,
+        model,
+        running_tab,
+    )
+    .map_err(|error| format!("error: {error}"))
+}
+
+pub(super) fn start_provider_modify_turn(
+    state: &EditorState,
+    provider: Box<dyn ChatProvider>,
+    instruction: &str,
+    target_frame_ids: Vec<String>,
+    attachments: Vec<op_ai::chat_provider::ChatAttachment>,
+    model: Option<String>,
+    running_tab: usize,
+) -> Result<ChatTurnJob, ModifyLaunchError> {
     let plan = op_chat_agent::chat_modify::build_modify_plan_for_targets(
         state,
         instruction,
         target_frame_ids,
     )
-    .ok_or_else(|| "error: the page to edit is no longer available".to_string())?;
-    let runtime = chat_runtime().map_err(|error| format!("error: {error}"))?;
+    .ok_or(ModifyLaunchError::TargetUnavailable)?;
+    let runtime = chat_runtime().map_err(|_| ModifyLaunchError::RuntimeUnavailable)?;
+    let hosted_epoch = provider.hosted_session_epoch();
     let request = ChatRequest {
         system_prompt: plan.system_prompt,
         user_message: plan.user_message,
-        model: Some(turn.model.clone()),
+        model,
+        attachments,
         max_output_tokens: 8192,
         thinking: ThinkingMode::Disabled,
         ..Default::default()
     };
-    let provider = MobileModifyProvider { turn, runtime };
     let (tx, rx) = mpsc::channel();
     let (executor, tool_rx) = chat_tool_channel();
     let cancel = Arc::new(AtomicBool::new(false));
@@ -117,7 +159,7 @@ pub(super) fn start_modify_turn(
     let epoch = op_editor_core::agent_indicators::begin();
     let task = runtime.spawn_blocking(move || {
         op_chat_agent::chat_modify::run_modify_turn_cancellable(
-            &provider,
+            provider.as_ref(),
             request,
             &tx,
             &executor,
@@ -126,12 +168,17 @@ pub(super) fn start_modify_turn(
         );
     });
     Ok(ChatTurnJob {
-        session: ChatSession::from_channels_with_cancel(rx, Some(tool_rx), cancel),
+        session: ChatSession::from_channels_with_cancel(rx, Some(tool_rx), cancel)
+            .with_hosted_session_epoch(hosted_epoch),
         document_identity: (0, 0),
         running_tab,
+        running_tab_identity: 0,
+        running_message_index: 0,
+        workspace_epoch: None,
         abort: Some(task.abort_handle()),
         indicator_epoch: Some(epoch),
         page_edit_fence: None,
+        bound_page_id: None,
         document_mutated: false,
     })
 }

@@ -47,6 +47,7 @@ op-ai = { path = "../op-ai" }
 # The builtin-provider agent loop + canvas/design tool surface, factored out
 # so mobile hosts share it; this crate re-exports it under the original paths.
 op-chat-agent = { path = "../op-chat-agent" }
+op-hosted-models = { path = "../op-hosted-models" }
 op-ai-skills = { path = "../op-ai-skills" }
 op-orchestrator = { path = "../op-orchestrator" }
 op-design-lint = { path = "../op-design-lint" }

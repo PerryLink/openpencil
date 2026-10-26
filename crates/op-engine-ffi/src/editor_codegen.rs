@@ -61,6 +61,7 @@ impl MobileCodegenHost {
 
         let mut changed =
             drain_codegen_cancel_state(&mut host.editor_state_mut().codegen, &mut self.current);
+        changed |= self.guard_hosted_session(host);
         changed |= self.guard_framework(host);
         changed |= self.launch_if_pending(host, identity);
         changed |= pump_codegen_state(
@@ -133,6 +134,24 @@ impl MobileCodegenHost {
         self.document_identity = Some(identity);
     }
 
+    /// Drop buffered account-scoped results before the shared codegen fold.
+    fn guard_hosted_session(&mut self, host: &mut WidgetHostNative) -> bool {
+        if !self.current.as_ref().is_some_and(|session| {
+            !op_hosted_models::session_epoch_is_current(session.hosted_session_epoch)
+        }) {
+            return false;
+        }
+        if let Some(session) = self.current.take() {
+            session.cancel();
+        }
+        let message = op_editor_core::hosted_model_catalog::hosted_transport_unavailable_message(
+            host.editor_state().editor_ui.locale,
+        )
+        .to_owned();
+        set_inline_error(host, message);
+        true
+    }
+
     /// Synthetic/framework changes cannot relabel a run. The normal UI
     /// disables framework tabs while generating; this host-side guard also
     /// covers stale/synthetic actions and keeps late output out of the wrong
@@ -198,14 +217,29 @@ impl MobileCodegenHost {
         let started = if framework.is_deterministic() {
             Ok(CodegenSession::start_deterministic(input, framework))
         } else {
-            let provider = match MobileBuiltinProvider::from_selected_model(host.editor_state()) {
-                Ok(provider) => provider,
-                Err(error) => {
-                    set_inline_error(host, error.to_string());
-                    return true;
+            let provider: Box<dyn op_ai::chat_provider::ChatProvider> = if let Some(route) = host
+                .editor_state()
+                .chat
+                .selected_model_entry()
+                .and_then(|entry| entry.hosted_route_id())
+            {
+                match op_hosted_models::provider_for_route(route) {
+                    Ok(provider) => provider,
+                    Err(error) => {
+                        set_inline_error(host, error.to_string());
+                        return true;
+                    }
+                }
+            } else {
+                match MobileBuiltinProvider::from_selected_model(host.editor_state()) {
+                    Ok(provider) => Box::new(provider),
+                    Err(error) => {
+                        set_inline_error(host, error.to_string());
+                        return true;
+                    }
                 }
             };
-            CodegenSession::try_start(Box::new(provider), input, framework)
+            CodegenSession::try_start(provider, input, framework)
         };
         let session = match started {
             Ok(session) => session

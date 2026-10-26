@@ -531,6 +531,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "失敗：{error}",
         "generator.starterCardGrid" => "卡片網格產生器",
         "generator.starterCalendar" => "月曆產生器",
+        "ai.referenceImagesInvalid" => "參考圖必須是非空的 PNG、JPEG、GIF 或 WebP 檔案。",
+        "ai.referenceImagesTooLarge" => "參考圖超過了附件大小或數量限制。",
+        "ai.referenceImagesUnsupported" => "所選模型不支援參考圖。請選擇支援圖片的模型，或移除附件。",
         "ai.hostedTransportUnavailable" => "目前工作階段無法使用 OpenPencil Hosted。請重新登入或選擇其他模型。",
         _ => return None,
     })

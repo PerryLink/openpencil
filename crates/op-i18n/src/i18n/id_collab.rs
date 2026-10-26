@@ -531,6 +531,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "Gagal: {error}",
         "generator.starterCardGrid" => "Generator kisi kartu",
         "generator.starterCalendar" => "Generator kalender",
+        "ai.referenceImagesInvalid" => "Gambar referensi harus berupa file PNG, JPEG, GIF, atau WebP yang tidak kosong.",
+        "ai.referenceImagesTooLarge" => "Gambar referensi melebihi batas ukuran atau jumlah lampiran.",
+        "ai.referenceImagesUnsupported" => "Model yang dipilih tidak mendukung gambar referensi. Pilih model yang mendukung gambar atau hapus lampiran.",
         "ai.hostedTransportUnavailable" => "OpenPencil Hosted tidak tersedia dalam sesi ini. Masuk kembali atau pilih model lain.",
         _ => return None,
     })

@@ -547,6 +547,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "失敗: {error}",
         "generator.starterCardGrid" => "カードグリッド ジェネレーター",
         "generator.starterCalendar" => "カレンダー ジェネレーター",
+        "ai.referenceImagesInvalid" => "参照画像には、空でない PNG、JPEG、GIF、WebP ファイルを使用してください。",
+        "ai.referenceImagesTooLarge" => "参照画像が添付ファイルのサイズまたは数の上限を超えています。",
+        "ai.referenceImagesUnsupported" => "選択したモデルは参照画像に対応していません。画像対応モデルを選択するか、添付ファイルを削除してください。",
         "ai.hostedTransportUnavailable" => "このセッションでは OpenPencil Hosted を利用できません。再度ログインするか、別のモデルを選択してください。",
         _ => return None,
     })

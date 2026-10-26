@@ -44,6 +44,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuiltinHttpError {
+    Attachments(crate::chat_attachments::AttachmentError),
     /// The eagerly-built `Trusted` client is missing because construction
     /// already failed — the provider still answers so the turn reports a
     /// cause instead of panicking.
@@ -53,7 +54,10 @@ pub enum BuiltinHttpError {
     Dial(String),
     /// The account is rate-limited and the backoff ladder could not ride it
     /// out. `Display` MUST keep the literal `HTTP 429` — see the module doc.
-    RateLimited { label: String, max_retries: u32 },
+    RateLimited {
+        label: String,
+        max_retries: u32,
+    },
     /// A known vendor entitlement refusal, not a temporary frequency limit.
     ModelAccessDenied {
         label: String,
@@ -84,7 +88,9 @@ pub enum BuiltinHttpError {
     },
     /// Reading the SSE body failed part-way through. The turn may already
     /// have streamed text.
-    SseStream { message: String },
+    SseStream {
+        message: String,
+    },
     /// The provider announced an error inside an HTTP-200 SSE body. Text is
     /// the provider's own message (Anthropic's `error.message`, the
     /// OpenAI-compatible `/error/message`), which the agent loops surface
@@ -92,9 +98,13 @@ pub enum BuiltinHttpError {
     StreamReported(String),
     /// The configured base URL is not a parseable URL. Message is the `url`
     /// crate's own parse error, an upstream crate this pass does not own.
-    InvalidEndpointUrl { message: String },
+    InvalidEndpointUrl {
+        message: String,
+    },
     /// The base URL parsed but uses a scheme this transport cannot dial.
-    EndpointUnsupportedScheme { scheme: String },
+    EndpointUnsupportedScheme {
+        scheme: String,
+    },
     /// The base URL parsed but names no host.
     EndpointMissingHost,
     /// The base URL carries a query string or fragment. Refused rather than
@@ -105,6 +115,7 @@ pub enum BuiltinHttpError {
 impl fmt::Display for BuiltinHttpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Attachments(error) => error.fmt(f),
             BuiltinHttpError::ModelAccessDenied { label, status, provider_code } => write!(
                 f,
                 "Model access denied by the current subscription (provider code {provider_code}, HTTP {}). Check the account's model permissions. ({label})",

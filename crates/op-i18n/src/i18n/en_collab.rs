@@ -571,6 +571,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "Failed: {error}",
         "generator.starterCardGrid" => "Card grid generator",
         "generator.starterCalendar" => "Calendar generator",
+        "ai.referenceImagesInvalid" => "Reference images must be nonempty PNG, JPEG, GIF, or WebP files.",
+        "ai.referenceImagesTooLarge" => "Reference images exceed the attachment size or count limit.",
+        "ai.referenceImagesUnsupported" => "The selected model does not support reference images. Choose an image-capable model or remove the attachments.",
         "ai.hostedTransportUnavailable" => "OpenPencil Hosted is unavailable in this session. Sign in again or choose another model.",
         _ => return None,
     })

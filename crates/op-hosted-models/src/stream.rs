@@ -109,12 +109,7 @@ mod tests {
             "200 OK",
             "",
         );
-        let response = crate::hosted_models::client()
-            .unwrap()
-            .get(url)
-            .send()
-            .await
-            .unwrap();
+        let response = crate::client().unwrap().get(url).send().await.unwrap();
         let (tx, mut rx) = mpsc::channel(8);
         assert!(pump(response, &tx, HostedProtocol::OpenAiCompatible)
             .await
@@ -128,12 +123,7 @@ mod tests {
             "200 OK",
             "",
         );
-        let response = crate::hosted_models::client()
-            .unwrap()
-            .get(url)
-            .send()
-            .await
-            .unwrap();
+        let response = crate::client().unwrap().get(url).send().await.unwrap();
         assert!(!pump(response, &tx, HostedProtocol::OpenAiCompatible)
             .await
             .unwrap());
@@ -147,7 +137,7 @@ mod tests {
             "302 Found",
             "Location: http://127.0.0.1:1/secret\r\n",
         );
-        let response = crate::hosted_models::client()
+        let response = crate::client()
             .unwrap()
             .get(url)
             .bearer_auth("test-fixture-only")

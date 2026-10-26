@@ -547,6 +547,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "실패: {error}",
         "generator.starterCardGrid" => "카드 그리드 생성기",
         "generator.starterCalendar" => "달력 생성기",
+        "ai.referenceImagesInvalid" => "참조 이미지는 비어 있지 않은 PNG, JPEG, GIF 또는 WebP 파일이어야 합니다.",
+        "ai.referenceImagesTooLarge" => "참조 이미지가 첨부 파일의 크기 또는 개수 제한을 초과했습니다.",
+        "ai.referenceImagesUnsupported" => "선택한 모델은 참조 이미지를 지원하지 않습니다. 이미지를 지원하는 모델을 선택하거나 첨부 파일을 제거하세요.",
         "ai.hostedTransportUnavailable" => "이 세션에서는 OpenPencil Hosted를 사용할 수 없습니다. 다시 로그인하거나 다른 모델을 선택하세요.",
         _ => return None,
     })

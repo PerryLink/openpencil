@@ -1,0 +1,36 @@
+[package]
+name = "op-hosted-models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "OpenPencil verified Hosted model discovery and transport shared by desktop and mobile"
+
+[features]
+default = []
+# Explicit local debug archive lane; production uses verified signed artifacts.
+dev-hosted = ["op-auth-bridge/dev-hosted"]
+
+[dependencies]
+op-ai = { path = "../op-ai" }
+op-auth-bridge = { path = "../op-auth-bridge" }
+op-chat-agent = { path = "../op-chat-agent" }
+op-editor-core = { path = "../op-editor-core" }
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+  "json",
+  "stream",
+] }
+tokio = { version = "1", default-features = false, features = [
+  "rt-multi-thread",
+  "macros",
+  "sync",
+  "net",
+  "time",
+] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+getrandom = "0.3"
+sha2 = "0.10"
+tracing = { workspace = true }

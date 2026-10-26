@@ -269,6 +269,9 @@ pub unsafe extern "C" fn op_editor_auth_sign_out(engine: *mut crate::OpEngine) -
         call_session(engine, |session| {
             let host = session.editor_mut()?;
             host.sign_out_account();
+            op_hosted_models::clear();
+            session.pump_editor_chat(session.now_ms);
+            session.pump_editor_codegen(session.now_ms);
             session.request_redraw();
             Ok(())
         })
@@ -343,6 +346,9 @@ pub(crate) fn pump(session: &mut Session) -> Option<u64> {
     let (flow_active, login_active, pending_url) = {
         let host = session.editor.as_mut()?;
         let _ = host.poll_auth();
+        if op_hosted_models::sync_editor(host.editor_state_mut()) {
+            host.mark_editor_state_dirty();
+        }
         (
             host.auth_flow_active(),
             host.auth_login_active(),
@@ -373,7 +379,8 @@ pub(crate) fn pump(session: &mut Session) -> Option<u64> {
         session.auth_shell.close_pending = true;
     }
 
-    flow_active.then_some(session.now_ms.saturating_add(AUTH_POLL_INTERVAL_MS))
+    (flow_active || op_hosted_models::needs_poll())
+        .then_some(session.now_ms.saturating_add(AUTH_POLL_INTERVAL_MS))
 }
 
 /// Stop background auth work before the platform tears down the engine. This
@@ -383,6 +390,7 @@ pub(crate) fn shutdown(session: &mut Session) {
     if let Some(host) = session.editor.as_mut() {
         host.shutdown_auth();
     }
+    op_hosted_models::clear();
     session.auth_shell = EditorAuthShellState::default();
 }
 

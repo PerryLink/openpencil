@@ -4479,6 +4479,7 @@ dependencies = [
  "op-editor-host-core",
  "op-editor-ui",
  "op-host-native",
+ "op-hosted-models",
  "op-i18n",
  "op-image-enrich",
  "op-orchestrator",
@@ -4678,6 +4679,7 @@ dependencies = [
  "op-editor-host-core",
  "op-editor-ui",
  "op-figma",
+ "op-hosted-models",
  "op-html",
  "op-i18n",
  "op-image-enrich",
@@ -4737,6 +4739,24 @@ version = "0.8.5"
 dependencies = [
  "op-host-services",
  "serde_json",
+]
+
+[[package]]
+name = "op-hosted-models"
+version = "0.8.5"
+dependencies = [
+ "futures",
+ "getrandom 0.3.4",
+ "op-ai",
+ "op-auth-bridge",
+ "op-chat-agent",
+ "op-editor-core",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

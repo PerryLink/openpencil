@@ -390,6 +390,7 @@ impl ConfiguredBuiltinProvider {
                     system_prompt,
                     history,
                     user_prompt: prompt,
+                    attachments: Vec::new(),
                     max_output_tokens,
                     tools: provider.tools.clone(),
                     executor,

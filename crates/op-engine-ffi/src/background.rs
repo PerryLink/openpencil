@@ -36,6 +36,7 @@ impl Session {
                 .editor
                 .as_ref()
                 .map(|host| host.editor_state().document_revision());
+            crate::editor_auth::pump(self);
             self.pump_editor_chat(now_ms);
             self.pump_editor_codegen(now_ms);
             self.pump_editor_image_search(now_ms);

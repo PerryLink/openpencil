@@ -43,6 +43,7 @@ pub(crate) struct BuiltinChatTurn {
     pub system_prompt: String,
     pub history: Vec<(ChatHistoryRole, String)>,
     pub prompt: String,
+    pub attachments: Vec<op_ai::chat_provider::ChatAttachment>,
     pub max_output_tokens: u32,
 }
 
@@ -51,6 +52,7 @@ pub(crate) struct BuiltinChatTurn {
 /// failure reads the same in a transcript on every host.
 #[derive(Debug)]
 pub(crate) enum MobileChatTurnError {
+    Attachments(op_chat_agent::chat_attachments::AttachmentError),
     ClientBuild {
         message: String,
     },
@@ -74,6 +76,7 @@ pub(crate) enum MobileChatTurnError {
 impl fmt::Display for MobileChatTurnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Attachments(error) => error.fmt(f),
             MobileChatTurnError::ClientBuild { message } => {
                 write!(f, "Provider HTTP client is unavailable: {message}")
             }
@@ -143,6 +146,11 @@ async fn run_streaming_request(
     tx: &Sender<ChatDelta>,
     disable_thinking: bool,
 ) -> Result<bool, MobileChatTurnError> {
+    op_chat_agent::chat_attachments::validate_model(&turn.model, &turn.attachments)
+        .map_err(MobileChatTurnError::Attachments)?;
+    let content =
+        op_chat_agent::chat_attachments::user_content(turn.kind, &turn.prompt, &turn.attachments)
+            .map_err(MobileChatTurnError::Attachments)?;
     let client = build_mobile_chat_client()?;
     let (label, request, parse): (_, _, fn(&str) -> Option<ChatDelta>) = match turn.kind {
         BuiltinAgentKind::OpenAiCompat => {
@@ -154,7 +162,7 @@ async fn run_streaming_request(
             for (role, text) in &turn.history {
                 messages.push(json!({ "role": role.as_str(), "content": text }));
             }
-            messages.push(json!({ "role": "user", "content": turn.prompt }));
+            messages.push(json!({ "role": "user", "content": content }));
             let mut body = json!({
                 "model": turn.model,
                 "stream": true,
@@ -180,7 +188,7 @@ async fn run_streaming_request(
                 .iter()
                 .map(|(role, text)| json!({ "role": role.as_str(), "content": text }))
                 .collect();
-            messages.push(json!({ "role": "user", "content": turn.prompt }));
+            messages.push(json!({ "role": "user", "content": content }));
             let mut body = json!({
                 "model": turn.model,
                 "max_tokens": turn.max_output_tokens,

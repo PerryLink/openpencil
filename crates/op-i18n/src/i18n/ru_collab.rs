@@ -561,6 +561,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "Ошибка: {error}",
         "generator.starterCardGrid" => "Генератор сетки карточек",
         "generator.starterCalendar" => "Генератор календаря",
+        "ai.referenceImagesInvalid" => "Изображения-образцы должны быть непустыми файлами PNG, JPEG, GIF или WebP.",
+        "ai.referenceImagesTooLarge" => "Изображения-образцы превышают допустимый размер или количество вложений.",
+        "ai.referenceImagesUnsupported" => "Выбранная модель не поддерживает изображения-образцы. Выберите модель с поддержкой изображений или удалите вложения.",
         "ai.hostedTransportUnavailable" => "OpenPencil Hosted недоступен в этом сеансе. Войдите снова или выберите другую модель.",
         _ => return None,
     })

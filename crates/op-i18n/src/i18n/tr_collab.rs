@@ -531,6 +531,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "Başarısız: {error}",
         "generator.starterCardGrid" => "Kart ızgarası oluşturucu",
         "generator.starterCalendar" => "Takvim oluşturucu",
+        "ai.referenceImagesInvalid" => "Referans görselleri boş olmayan PNG, JPEG, GIF veya WebP dosyaları olmalıdır.",
+        "ai.referenceImagesTooLarge" => "Referans görselleri ek boyutu veya sayısı sınırını aşıyor.",
+        "ai.referenceImagesUnsupported" => "Seçilen model referans görsellerini desteklemiyor. Görsel destekleyen bir model seçin veya ekleri kaldırın.",
         "ai.hostedTransportUnavailable" => "OpenPencil Hosted bu oturumda kullanılamıyor. Yeniden oturum açın veya başka bir model seçin.",
         _ => return None,
     })

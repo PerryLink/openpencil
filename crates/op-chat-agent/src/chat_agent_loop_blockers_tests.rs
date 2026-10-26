@@ -39,6 +39,7 @@ fn base_cfg(
         system_prompt: String::new(),
         history: Vec::new(),
         user_prompt: "build the app".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![update_node_tool_def()],
         executor,

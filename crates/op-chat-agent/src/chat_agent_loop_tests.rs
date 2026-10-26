@@ -395,6 +395,7 @@ fn anthropic_loop_executes_tool_and_continues_with_tool_result() {
         system_prompt: "You are a design editor.".into(),
         history: vec![(ChatHistoryRole::User, "earlier turn".into())],
         user_prompt: "make the title red".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![update_node_tool_def()],
         executor: executor.clone(),
@@ -473,6 +474,7 @@ fn loop_skips_finalize_when_disabled_for_plain_chat() {
         system_prompt: String::new(),
         history: Vec::new(),
         user_prompt: "just chatting".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![update_node_tool_def()],
         executor: executor.clone(),
@@ -504,6 +506,7 @@ fn anthropic_loop_stops_at_turn_cap_with_max_tokens_reason() {
         system_prompt: String::new(),
         history: Vec::new(),
         user_prompt: "loop forever".into(),
+        attachments: Vec::new(),
         max_output_tokens: 128,
         tools: vec![update_node_tool_def()],
         executor: executor.clone(),
@@ -565,6 +568,7 @@ fn openai_loop_executes_tool_and_continues_with_role_tool_message() {
             (ChatHistoryRole::Assistant, "hello".into()),
         ],
         user_prompt: "delete the badge".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![delete_node_tool_def()],
         executor: executor.clone(),
@@ -688,6 +692,7 @@ fn anthropic_loop_replays_screenshot_result_as_image_content_block() {
         system_prompt: "You are a design editor.".into(),
         history: Vec::new(),
         user_prompt: "render and check the design".into(),
+        attachments: Vec::new(),
         max_output_tokens: 512,
         tools: vec![get_screenshot_tool_def()],
         executor: executor.clone(),
@@ -759,3 +764,6 @@ mod budget_tests;
 
 #[path = "chat_agent_loop_text_only_tests.rs"]
 mod text_only_tests;
+
+#[path = "chat_agent_loop_attachment_tests.rs"]
+mod attachment_tests;

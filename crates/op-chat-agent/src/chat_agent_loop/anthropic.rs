@@ -97,7 +97,18 @@ pub(super) async fn run_anthropic_agent_loop_inner(
     for (role, text) in &cfg.history {
         messages.push(json!({ "role": role.as_str(), "content": text }));
     }
-    messages.push(json!({ "role": "user", "content": cfg.user_prompt }));
+    crate::chat_attachments::validate_model(&cfg.model, &cfg.attachments)
+        .map_err(BuiltinHttpError::Attachments)?;
+    let content = crate::chat_attachments::user_content(
+        op_editor_core::BuiltinAgentKind::Anthropic,
+        &cfg.user_prompt,
+        &cfg.attachments,
+    )
+    .map_err(BuiltinHttpError::Attachments)?;
+    messages.push(json!({ "role": "user", "content": content }));
+    // User reference images remain authoritative throughout retries/tool turns.
+    // Only generated observations after this prefix may be superseded.
+    let reference_prefix_len = messages.len();
 
     // Tier 2 — under-budget per-screen fill-round budget (see
     // `FILL_BUDGET_MAX_ROUNDS_PER_SCREEN`'s doc comment for the "budget
@@ -351,7 +362,7 @@ pub(super) async fn run_anthropic_agent_loop_inner(
             ) {
                 Some(PreparedScreenshot::Inline(b64)) => {
                     // Keep only the newest visual observation.
-                    for message in &mut messages {
+                    for message in &mut messages[reference_prefix_len..] {
                         elide_inline_screenshots(message);
                     }
                     for prior_result in &mut results {

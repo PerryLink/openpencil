@@ -533,6 +533,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "generator.failed" => "ล้มเหลว: {error}",
         "generator.starterCardGrid" => "ตัวสร้างกริดการ์ด",
         "generator.starterCalendar" => "ตัวสร้างปฏิทิน",
+        "ai.referenceImagesInvalid" => "ภาพอ้างอิงต้องเป็นไฟล์ PNG, JPEG, GIF หรือ WebP ที่ไม่ว่างเปล่า",
+        "ai.referenceImagesTooLarge" => "ภาพอ้างอิงเกินขีดจำกัดขนาดหรือจำนวนไฟล์แนบ",
+        "ai.referenceImagesUnsupported" => "โมเดลที่เลือกไม่รองรับภาพอ้างอิง โปรดเลือกโมเดลที่รองรับภาพหรือนำไฟล์แนบออก",
         "ai.hostedTransportUnavailable" => "เซสชันนี้ไม่สามารถใช้ OpenPencil Hosted ได้ โปรดลงชื่อเข้าใช้อีกครั้งหรือเลือกรุ่นอื่น",
         _ => return None,
     })
