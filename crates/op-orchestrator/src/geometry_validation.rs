@@ -112,6 +112,8 @@ mod geometry_pinned_composer;
 mod geometry_row_fixes;
 #[path = "geometry_scale_ops.rs"]
 mod geometry_scale_ops;
+#[path = "geometry_sidebar_rail.rs"]
+mod geometry_sidebar_rail;
 #[path = "geometry_spill_diagnostics.rs"]
 mod geometry_spill_diagnostics;
 #[path = "geometry_starved_column.rs"]
@@ -387,6 +389,8 @@ pub fn geometry_validate_and_fix_for_form(
             // BEFORE the jam gap: a calendar week that cannot seat its
             // identical cells gets the shared width and a narrower gap.
             geometry_grid_row_fit::collect_grid_row_fit_fixes(&v, &rects, &mut cmds);
+            // A scaffold sidebar wider than the rail drawn inside it.
+            geometry_sidebar_rail::collect_sidebar_rail_fixes(&v, &rects, &mut cmds);
             collect_row_gap_fixes(&v, &rects, &mut cmds);
             collect_card_row_height_fixes(&v, &rects, &mut cmds, false);
             // BEFORE the inside-out overfull repair: a rigid row starved by
