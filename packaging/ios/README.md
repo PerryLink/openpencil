@@ -40,16 +40,16 @@ scripts/build-mobile-auth-dev.sh \
 For Hosted model access, use an ABI-v4 archive for the same mobile target and
 pass `--abi 4`. The script selects `mobile-hosted-dev`, which forwards the
 additional debug-only `op-auth-bridge/dev-hosted` capability. ABI-v3 retains
-login/collaboration support but cannot use Hosted plans. The production matrix
-is still ABI-v3; shipping Hosted requires a newly signed complete ABI-v4 matrix
-and reviewed `AUTH-RELEASE-POLICY` adoption. The consumer verifies that matrix
+login/collaboration support but cannot use Hosted plans. Shipping Hosted
+requires a complete signed ABI-v4 matrix and reviewed `AUTH-RELEASE-POLICY`
+adoption. The consumer verifies that matrix
 without requiring any development feature; unsigned archives remain Debug-only.
 
 Then pass that exact archive to Xcode as `OP_AUTH_ARCHIVE` and repeat the ABI
 with `OPENPENCIL_DEV_OP_AUTH_ABI_VERSION`. The project pre-build gate accepts
 an unsigned archive only for `CONFIGURATION=Debug`. Release linking accepts
-only the adopted ABI-v3 matrix under `crates/op-auth-bridge/prebuilt/`: every
-target is SHA-pinned and Ed25519-signed, while the source-owned
+only the adopted complete signed matrix under `crates/op-auth-bridge/prebuilt/`:
+every target is SHA-pinned and Ed25519-signed, while the source-owned
 `AUTH-RELEASE-POLICY` pins the exact complete matrix and private build identity.
 The matrix's signed `VERSION` and `openpencil_revision` record its own release
 provenance; they do not have to equal the consuming OpenPencil version or
@@ -57,11 +57,13 @@ commit. Never copy a local private archive into this source tree or into an
 Xcode resource phase.
 
 The protected production flow rebuilds, audits, and signs all ten immutable
-ABI-v3 candidates together, including `aarch64-apple-ios`,
-`aarch64-apple-ios-sim`, both Android targets, and all six desktop targets.
+candidates together for the chosen production ABI (v4 for Hosted), including
+`aarch64-apple-ios`, `aarch64-apple-ios-sim`, both Android targets, and all six
+desktop targets.
 App Store/TestFlight builds verify the adopted policy, the complete signed
-matrix, and Cargo's actual ABI-v3 link selection before staging the exact
-device archive for the final Xcode link. A missing target, policy, digest,
+matrix, and Cargo's actual link selection against the policy's ABI before
+staging the exact device archive for the final Xcode link. Hosted builds require
+ABI 4 throughout that path. A missing target, policy, digest,
 signature, or hardening mismatch, incomplete matrix, ABI downgrade, or stub
 fallback stops the release before upload. OpenPencil-only source changes and
 version bumps may reuse the adopted matrix; an op-platform, ABI, toolchain, or

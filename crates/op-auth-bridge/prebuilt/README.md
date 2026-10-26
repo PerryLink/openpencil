@@ -20,9 +20,9 @@ public source context used when the private matrix was produced; they are
 provenance, not an allowlist for later public commits.
 
 `../AUTH-RELEASE-POLICY` is the source-reviewed adoption lock. It pins the
-trusted Ed25519 public key, exact complete release-manifest SHA-256, ABI 3,
-private source revision, and immutable build id. This prevents rollback to a
-different older matrix that is still validly signed by the same historical
+trusted Ed25519 public key, exact complete release-manifest SHA-256, adopted ABI
+(3 or 4), private source revision, and immutable build id. This prevents rollback
+to a different older matrix that is still validly signed by the same historical
 key. The policy is deliberately outside the artifact root and has no
 OpenPencil workspace version field.
 
@@ -68,7 +68,7 @@ digest, ABI different from the source adoption lock, inconsistent metadata, or u
 profile. Unsigned local mobile archives belong only in the explicit Debug
 override and must never be copied into this directory.
 
-## ABI-v2 / ABI-v3 signed provenance
+## Signed artifact provenance
 
 Every production target directory must contain:
 
@@ -91,9 +91,11 @@ archive digest, hardening profile, source revision, or build id.
 
 ABI v3 appends relay-token minting to the ABI-v2 login and collaboration-ticket
 surface. ABI v4 appends Hosted access begin/poll/cancel and session epochs. The
-build bridge gates each appended symbol set by the validated ABI. The currently
-committed matrix and adoption lock remain ABI v3; enabling consumer support for
-v4 does not constitute a signed release or authorize changing those pins.
+build bridge gates each appended symbol set by the validated ABI. Shipping
+Hosted requires a complete signed ABI-v4 matrix and a reviewed adoption lock
+for that matrix. ABI v3 supports login and collaboration but cannot enable
+Hosted. Consumer support for v4 does not constitute a signed release or
+authorize changing the adoption pins.
 
 ## Private rebuild profile
 
@@ -142,8 +144,9 @@ candidate.
 Production matrix rebuilds use the established private-repository release path:
 
 1. The private `ZSeven-W/op-platform` `prebuilt-production` workflow rebuilds
-   and audits all ten ABI-v3 targets, and binds every candidate to the private
-   source revision, recorded public build context, and one immutable build id.
+   and audits all ten targets for the chosen production ABI (v4 for Hosted),
+   and binds every candidate to the private source revision, recorded public
+   build context, and one immutable build id.
 2. That protected private workflow uses its existing
    `OP_AUTH_PROVENANCE_SIGNING_KEY_PEM` secret to sign every target and the
    complete release matrix, then independently verifies the signed result

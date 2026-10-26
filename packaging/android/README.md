@@ -51,9 +51,9 @@ cd packaging/android && ./gradlew installDebug && cd -
 For Hosted model access, use an ABI-v4 archive for the same mobile target and
 pass `--abi 4`. The script selects `mobile-hosted-dev`, which forwards the
 additional debug-only `op-auth-bridge/dev-hosted` capability. ABI-v3 retains
-login/collaboration support but cannot use Hosted plans. The production matrix
-is still ABI-v3; shipping Hosted requires a newly signed complete ABI-v4 matrix
-and reviewed `AUTH-RELEASE-POLICY` adoption. The consumer verifies that matrix
+login/collaboration support but cannot use Hosted plans. Shipping Hosted
+requires a complete signed ABI-v4 matrix and reviewed `AUTH-RELEASE-POLICY`
+adoption. The consumer verifies that matrix
 without requiring any development feature; unsigned archives remain Debug-only.
 The Debug helper also derives QuickJS bindgen's sysroot from `ANDROID_NDK_HOME`
 (or `ANDROID_NDK_ROOT` / `ANDROID_NDK`) and uses API 26 for both Cargo NDK and
@@ -64,18 +64,20 @@ is linked into `libop_engine_jni.so`; it is never packaged as an Android asset
 or standalone `.a`. Both the archive and generated `.so` stay ignored by Git.
 The Gradle Release variant reads only `app/src/release/jniLibs`, so a local
 Debug auth library cannot leak into Release. Production consumes the adopted
-ten-target ABI-v3 matrix under `crates/op-auth-bridge/prebuilt/`. Its signatures
-and source-owned `AUTH-RELEASE-POLICY` pin the exact matrix and private build
+complete ten-target signed matrix under `crates/op-auth-bridge/prebuilt/`. Its
+signatures and source-owned `AUTH-RELEASE-POLICY` pin the exact matrix and private build
 identity; the matrix's signed version and public revision are provenance, not
 requirements that every consuming OpenPencil commit must match.
 
-Private release CI rebuilds, audits, and signs all ten immutable ABI-v3
-candidates together: both Android targets, both iOS targets, and all six
-desktop targets. The candidate artifacts are never production link inputs. An
-authenticated Android Release first verifies the adopted policy and complete
+Private release CI rebuilds, audits, and signs all ten immutable candidates
+together for the chosen production ABI (v4 for Hosted): both Android targets,
+both iOS targets, and all six desktop targets. The candidate artifacts are never
+production link inputs. An authenticated Android Release first verifies the
+adopted policy and complete
 signed matrix, then builds both JNI ABIs in Cargo's release profile into
-`app/src/release/jniLibs` and proves Cargo actually selected signed ABI 3. Only
-the resulting `libop_engine_jni.so` files enter the APK; the `.a` archives are
+`app/src/release/jniLibs` and proves Cargo selected the signed ABI declared by
+the reviewed policy, which must be ABI 4 for Hosted. Only the resulting
+`libop_engine_jni.so` files enter the APK; the `.a` archives are
 never packaged as assets. Any policy, matrix, provenance, ABI, hardening,
 signature, or digest failure stops the release instead of falling back to
 unsigned code. OpenPencil-only commits and version bumps reuse the adopted

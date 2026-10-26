@@ -14,8 +14,8 @@ crate's Cargo source package and this crate is not published to a registry.
 Their licensing and provenance are managed by their independent source rather
 than by this crate's notice.
 
-The committed production input is a complete ten-target ABI-v3 matrix covering
-desktop, iOS device and simulator, and Android arm64 and x86_64. Its signed
+Production input is a complete ten-target signed matrix covering desktop, iOS
+device and simulator, and Android arm64 and x86_64. Its signed
 `VERSION` and `openpencil_revision` values identify the artifact release and
 record its original public build context; neither value is a compatibility lock
 to the consuming OpenPencil checkout. Compatibility is instead gated by the
@@ -25,8 +25,9 @@ Private release CI rebuilds an immutable candidate for every supported target,
 audits its hardening, and signs each artifact plus the complete release
 manifest. Candidates are never linked directly into production. Normal Rust,
 Android, and App Store builds accept only a self-consistent matrix rooted in
-the repository Ed25519 public key, with exact archive hashes, ABI v3, all ten
-canonical targets, signed private provenance, and signed hardening digests.
+the repository Ed25519 public key, with exact archive hashes, one policy-adopted
+ABI (v3 or v4), all ten canonical targets, signed private provenance, and signed
+hardening digests. Shipping Hosted requires the complete ABI-v4 matrix.
 The source-owned `AUTH-RELEASE-POLICY` additionally pins the exact adopted
 matrix digest and private identity, so another older matrix signed by the same
 key cannot be replayed.
@@ -47,10 +48,10 @@ as the trust anchor, and avoids a broad linker multiple-definition exception.
 Malformed archives, changed bytes, and archives containing both names fail
 closed.
 
-Production ABI-v2 and ABI-v3 artifacts fail closed unless their byte hash,
-target, ABI,
-source revision, build id, and `op-auth-hardened-v1` declaration are covered by
-an Ed25519 signature rooted in `prebuilt/PROVENANCE_PUBKEY`. The private release
+Production ABI-v2, ABI-v3, and ABI-v4 artifacts fail closed unless their byte
+hash, target, ABI, source revision, build id, and `op-auth-hardened-v1`
+declaration are covered by an Ed25519 signature rooted in
+`prebuilt/PROVENANCE_PUBKEY`. The private release
 pipeline must rebuild with path remapping, debug stripping, a narrow C wrapper,
 LTO, and its reviewed obfuscation passes before
 `tools/package-op-auth-prebuilt.sh` will stage and sign new bytes. See
@@ -114,14 +115,15 @@ override variables continues to use the signed production artifact.
 
 Hosted access is unavailable on ABI v1–v3; their login and collaboration APIs
 continue to work. ABI v4 adds independent begin/poll/cancel operations and a
-session epoch for short-lived, non-persistent Hosted credentials. The production
-release matrix and provenance policy currently remain ABI v3. Signed ABI v4 is
-supported without a development feature only after `AUTH-RELEASE-POLICY` adopts
-its ABI, exact complete matrix digest, private source revision, and build ID.
+session epoch for short-lived, non-persistent Hosted credentials. A Hosted
+production release requires a complete signed ABI-v4 matrix and reviewed
+`AUTH-RELEASE-POLICY` adoption of its ABI, exact complete matrix digest, private
+source revision, and build ID. Once adopted and verified, signed ABI v4 is
+supported without a development feature.
 Each target still requires valid provenance, byte hashes, and all four Hosted
 symbols. The runtime ABI handshake must match the validated archive declaration.
-This change does not produce or adopt a new signed private release, and the
-Debug override does not authorize shipping an unsigned archive.
+Consumer support alone does not produce or adopt a signed private release, and
+the Debug override does not authorize shipping an unsigned archive.
 
 ## Regional login and collaboration trust
 

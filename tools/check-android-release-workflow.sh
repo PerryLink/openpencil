@@ -7,6 +7,7 @@ set -euo pipefail
 script_dir=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 repo_root=$(CDPATH='' cd "$script_dir/.." && pwd)
 workflow=${OPENPENCIL_ANDROID_RELEASE_WORKFLOW:-$repo_root/.github/workflows/android-release.yml}
+caller=${OPENPENCIL_ANDROID_RELEASE_CALLER:-$repo_root/.github/workflows/rust-release.yml}
 builder=${OPENPENCIL_ANDROID_RELEASE_BUILDER:-$repo_root/scripts/build-android-release.sh}
 signer=${OPENPENCIL_ANDROID_RELEASE_SIGNER:-$repo_root/scripts/sign-android-release.sh}
 app_gradle=${OPENPENCIL_ANDROID_APP_GRADLE:-$repo_root/packaging/android/app/build.gradle.kts}
@@ -35,7 +36,7 @@ reject_literal() {
 }
 
 for file in \
-    "$workflow" "$builder" "$signer" "$app_gradle" "$root_gradle" \
+    "$workflow" "$caller" "$builder" "$signer" "$app_gradle" "$root_gradle" \
     "$wrapper" "$verification" "$jni_manifest" "$pinned_tools" \
     "$sdk_installer" "$mobile_auth_gate"; do
     [[ -f "$file" && ! -L "$file" ]] || {
@@ -48,7 +49,7 @@ ruby -e 'require "yaml"; YAML.parse_file(ARGV.fetch(0))' "$workflow"
 ruby -e 'require "rexml/document"; REXML::Document.new(File.read(ARGV.fetch(0)))' \
     "$verification"
 
-ruby - "$workflow" <<'RUBY'
+ruby - "$workflow" "$caller" <<'RUBY'
 require "yaml"
 
 document = YAML.safe_load(File.read(ARGV.fetch(0)), aliases: true)
@@ -60,12 +61,25 @@ call_outputs = events.fetch("workflow_call").fetch("outputs")
 %w[version artifact_name artifact_id].each { |name| call_outputs.fetch(name) }
 call_secrets = events.fetch("workflow_call").fetch("secrets")
 expected_call_secrets = %w[
+  ANDROID_RELEASE_KEYSTORE_BASE64
+  ANDROID_RELEASE_KEYSTORE_PASSWORD
+  ANDROID_RELEASE_KEY_ALIAS
+  ANDROID_RELEASE_KEY_PASSWORD
   OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN
   OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL
 ]
 unless call_secrets.keys.sort == expected_call_secrets &&
     call_secrets.values.all? { |contract| contract.fetch("required") == true }
-  raise "Android workflow_call must require exactly the two relay secrets"
+  raise "Android workflow_call must require exactly two relay and four signing secrets"
+end
+caller = YAML.safe_load(File.read(ARGV.fetch(1)), aliases: true)
+android_call = caller.fetch("jobs").fetch("android-release")
+expected_forwarding = expected_call_secrets.to_h do |name|
+  [name, '${{ secrets.' + name + ' }}']
+end
+unless android_call.fetch("uses") == "./.github/workflows/android-release.yml" &&
+    android_call.fetch("secrets") == expected_forwarding
+  raise "Android caller must explicitly forward exactly the six named secrets"
 end
 
 jobs = document.fetch("jobs")
@@ -152,7 +166,11 @@ unless holders.length == 1 &&
   raise "Android signing credentials must be scoped to one signer step"
 end
 sign_env = holders.fetch(0).fetch("env")
-sensitive.each { |name| raise "missing signer secret #{name}" unless sign_env.key?(name) }
+sensitive.each do |name|
+  unless sign_env.fetch(name, nil) == '${{ secrets.' + name + ' }}'
+    raise "signer must read the matching protected secret #{name}"
+  end
+end
 unless sign_env.fetch("ANDROID_RELEASE_CERT_SHA256").to_s.include?("vars.ANDROID_RELEASE_CERT_SHA256")
   raise "signer must pin the protected certificate fingerprint"
 end

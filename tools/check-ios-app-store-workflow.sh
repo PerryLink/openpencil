@@ -8,7 +8,7 @@ script_dir=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 repo_root=$(CDPATH='' cd "$script_dir/.." && pwd)
 workflow=${OPENPENCIL_IOS_APP_STORE_WORKFLOW:-$repo_root/.github/workflows/ios-app-store.yml}
 publisher=${OPENPENCIL_IOS_TESTFLIGHT_PUBLISHER:-$repo_root/scripts/publish-ios-testflight.sh}
-matrix_verifier=$repo_root/tools/check-op-auth-release-matrix.sh
+matrix_verifier=${OPENPENCIL_IOS_AUTH_MATRIX_VERIFIER:-$repo_root/tools/check-op-auth-release-matrix.sh}
 remote_ref_gate=$repo_root/tools/check-op-auth-remote-ref.sh
 ios_build_number=$repo_root/tools/ios-build-number.sh
 relay_verifier=$repo_root/tools/check-collab-bootstrap-urls.py
@@ -339,7 +339,13 @@ require_literal 'pinned-skia-binaries = ["skia-safe/no-compile"]' "$engine_manif
 require_literal '4abbaea5e4e8934a6f19c5de44eaba9bf9238af4abbe57dbac5f2dc03923b182' "$pinned_tools"
 
 require_literal 'public_key=$repo_root/crates/op-auth-bridge/prebuilt/PROVENANCE_PUBKEY' "$matrix_verifier"
-require_literal 'build_id=$build_id.a3.$hardening_sha' "$matrix_verifier"
+require_literal '( "$policy_abi" == '\''abi=3'\'' || "$policy_abi" == '\''abi=4'\'' )' "$matrix_verifier"
+require_literal '[[ "$(sha256_file "$manifest")" == "$policy_manifest_sha" ]]' "$matrix_verifier"
+require_literal '[[ "$abi_line" == '\''abi=3'\'' || "$abi_line" == '\''abi=4'\'' ]]' "$matrix_verifier"
+require_literal 'matrix_abi=${abi_line#abi=}' "$matrix_verifier"
+require_literal 'if [[ "$strict_promotion" -eq 0 && "$abi_line" != "$policy_abi" ]]; then' "$matrix_verifier"
+require_literal 'require_exact_line "abi=$matrix_abi" "$provenance"' "$matrix_verifier"
+require_literal 'require_exact_line "build_id=$build_id.a$matrix_abi.$hardening_sha" "$provenance"' "$matrix_verifier"
 reject_literal 'public_key=$prebuilt_root/PROVENANCE_PUBKEY' "$matrix_verifier"
 require_literal 'git ls-remote --exit-code "$canonical_remote"' "$remote_ref_gate"
 require_literal '"$release_ref" "$release_ref^{}"' "$remote_ref_gate"

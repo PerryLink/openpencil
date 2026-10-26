@@ -4,7 +4,6 @@ name: Rust release artifacts
 # packages real installers per platform, builds the web Docker image and SDK
 # tarballs, publishes the web SDK packages to npm, publishes a GitHub
 # prerelease, then updates the Homebrew tap and Scoop bucket.
-#
 # Desktop installers, Android APK/AAB, web/SDK/VSIX assets, and package-manager
 # updates are attached to the GitHub release. The protected iOS job uploads to
 # App Store Connect / TestFlight and intentionally produces no GitHub asset.
@@ -18,16 +17,10 @@ name: Rust release artifacts
 #           OpenPencil-<v>-<arch>-linux.deb      Debian package
 #           openpencil-desktop-<label>.tar.gz    raw desktop binary
 #           op-cli-<label>.tar.gz                standalone CLI
-#
 # Platform installer and notarization paths still require a real tag run;
 # repository-owned scripts and workflow contract checks cover local validation.
-#
-# The `build` job builds the real `op-host-desktop` crate (winit + skia-safe
-# runner that drives the Rust editor); its shipped executable keeps the
-# stable `openpencil-desktop` name. The `op` CLI (crates/op-cli, binary name
-# `op`) is built in the same cargo invocation. The web Docker job builds the
-# Rust web host from `Dockerfile.web-rust`, and the SDK job packages the
-# wasm-backed `packages/op-web-sdk*` workspace tarballs.
+# The `build` job packages `op-host-desktop` and the `op` CLI together.
+# Web uses `Dockerfile.web-rust`; SDK tarballs use `packages/op-web-sdk*`.
 #
 # The standalone `.github/workflows/wasm-bundle-build.yml` still gates the
 # CanvasKit web bundle on push/PR. This release workflow only assembles the
@@ -166,6 +159,10 @@ jobs:
     secrets:
       OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN: ${{ secrets.OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN }}
       OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL: ${{ secrets.OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL }}
+      ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+      ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+      ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
 
   build:
     name: ${{ matrix.label }}

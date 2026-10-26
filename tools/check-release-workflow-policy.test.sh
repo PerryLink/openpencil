@@ -70,6 +70,24 @@ elif str(mode) == "ios-encryption-code":
 elif str(mode) == "ios-encryption-env-override":
     old = "          IOS_MARKETING_VERSION: ${{ needs.verify.outputs.version }}"
     new = old + "\n          IOS_USES_NON_EXEMPT_ENCRYPTION: ${{ vars.IOS_USES_NON_EXEMPT_ENCRYPTION }}"
+elif str(mode) == "ios-matrix-unsupported-abi":
+    old = '''[[ "$abi_line" == 'abi=3' || "$abi_line" == 'abi=4' ]]'''
+    new = old.replace("abi=4", "abi=5")
+elif str(mode) == "ios-matrix-policy-abi":
+    old = '"$abi_line" != "$policy_abi"'
+    new = '"$abi_line" != "$abi_line"'
+elif str(mode) == "ios-matrix-policy-digest":
+    old = '[[ "$(sha256_file "$manifest")" == "$policy_manifest_sha" ]]'
+    new = '[[ "$(sha256_file "$manifest")" == "$(sha256_file "$manifest")" ]]'
+elif str(mode) == "ios-matrix-provenance-abi":
+    old = 'require_exact_line "abi=$matrix_abi" "$provenance"'
+    new = 'require_exact_line "abi=3" "$provenance"'
+elif str(mode) == "ios-matrix-build-abi":
+    old = 'require_exact_line "build_id=$build_id.a$matrix_abi.$hardening_sha" "$provenance"'
+    new = 'require_exact_line "build_id=$build_id.a3.$hardening_sha" "$provenance"'
+elif str(mode) == "ios-matrix-untrusted-key":
+    old = 'public_key=$repo_root/crates/op-auth-bridge/prebuilt/PROVENANCE_PUBKEY'
+    new = 'public_key=$prebuilt_root/PROVENANCE_PUBKEY'
 elif str(mode) == "rust-skia-force":
     old = "[[ -z ${FORCE_SKIA_BINARIES_DOWNLOAD:-} && ${SKIA_BINARIES_URL:-} == file://* ]]"
     new = "[[ ${FORCE_SKIA_BINARIES_DOWNLOAD:-} == 1 && ${SKIA_BINARIES_URL:-} == file://* ]]"
@@ -197,6 +215,11 @@ case ${1-} in
             "$repo_root/tools/check-rust-release-auth-workflow.sh" "$fixture"
         ;;
     ios)
+        if ! "$repo_root/tools/check-ios-app-store-workflow.sh" \
+            >"$temporary/ios-baseline.log" 2>&1; then
+            cat "$temporary/ios-baseline.log" >&2
+            exit 1
+        fi
         fixture=$temporary/ios-skia-profile.yml
         mutate "$repo_root/.github/workflows/ios-app-store.yml" "$fixture" ios-skia-profile
         expect_rejected ios-skia-profile OPENPENCIL_IOS_APP_STORE_WORKFLOW \
@@ -216,6 +239,14 @@ case ${1-} in
             ios-encryption-env-override
         expect_rejected ios-encryption-env-override OPENPENCIL_IOS_APP_STORE_WORKFLOW \
             "$repo_root/tools/check-ios-app-store-workflow.sh" "$fixture"
+        for mutation in \
+            ios-matrix-unsupported-abi ios-matrix-policy-abi ios-matrix-policy-digest \
+            ios-matrix-provenance-abi ios-matrix-build-abi ios-matrix-untrusted-key; do
+            fixture=$temporary/$mutation.sh
+            mutate "$repo_root/tools/check-op-auth-release-matrix.sh" "$fixture" "$mutation"
+            expect_rejected "$mutation" OPENPENCIL_IOS_AUTH_MATRIX_VERIFIER \
+                "$repo_root/tools/check-ios-app-store-workflow.sh" "$fixture"
+        done
         ;;
     *)
         printf 'usage: %s {rust|ios}\n' "$0" >&2

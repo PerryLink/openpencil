@@ -274,6 +274,154 @@ bash "$script_dir/verify-signed-op-auth-matrix.sh" \
     --private-head-sha "$private_head_sha" \
     --openpencil-sha "$openpencil_sha" \
     --build-id "$build_id" >/dev/null
+
+verify_signed() {
+    local root=$1
+    shift
+    bash "$script_dir/verify-signed-op-auth-matrix.sh" \
+        --signed-root "$root" \
+        --trusted-public-key "$trusted_public_key" \
+        --version "$version" \
+        --private-head-sha "$private_head_sha" \
+        --openpencil-sha "$openpencil_sha" \
+        --build-id "$build_id" "$@"
+}
+
+# Re-sign test-only fixtures so ABI rejection cannot be masked by an invalid
+# signature or an outdated provenance digest. No production key is read.
+signed_fixture() {
+    python3 - "$1" "$2" "$3" "$private_key" "$signed_root" <<'PY'
+import hashlib
+import pathlib
+import shutil
+import subprocess
+import sys
+
+source, destination, mode, key, abi3_root = sys.argv[1:]
+root = pathlib.Path(destination)
+shutil.copytree(source, root)
+root.chmod(0o755)
+for path in root.rglob("*"):
+    path.chmod(0o755 if path.is_dir() else 0o644)
+
+def replace(path, old, new):
+    text = path.read_text()
+    assert text.count(old) == 1, (path, old)
+    path.write_text(text.replace(old, new))
+
+manifest = root / "RELEASE-MANIFEST"
+target = root / "aarch64-apple-ios"
+if mode == "abi4":
+    replace(manifest, "\nabi=3\n", "\nabi=4\n")
+    for directory in sorted(path for path in root.iterdir() if path.is_dir()):
+        (directory / "ABI_VERSION").write_text("4\n")
+        replace(directory / "HARDENING-ATTESTATION", "\nabi=3\n", "\nabi=4\n")
+        replace(directory / "PROVENANCE", "\nabi=3\n", "\nabi=4\n")
+        replace(directory / "PROVENANCE", ".a3.", ".a4.")
+elif mode == "abi-version":
+    (target / "ABI_VERSION").write_text("3\n")
+elif mode == "provenance-abi":
+    replace(target / "PROVENANCE", "\nabi=4\n", "\nabi=3\n")
+elif mode == "build-abi":
+    replace(target / "PROVENANCE", ".a4.", ".a3.")
+elif mode == "manifest-abi":
+    replace(manifest, "\nabi=4\n", "\nabi=3\n")
+elif mode == "hardening-abi":
+    replace(target / "HARDENING-ATTESTATION", "\nabi=4\n", "\nabi=3\n")
+elif mode == "duplicate-hardening-abi":
+    with (target / "HARDENING-ATTESTATION").open("a") as output:
+        output.write("abi=4\n")
+elif mode == "duplicate-empty-hardening-abi":
+    with (target / "HARDENING-ATTESTATION").open("a") as output:
+        output.write("abi=\n")
+elif mode == "mixed-target":
+    shutil.rmtree(target)
+    shutil.copytree(pathlib.Path(abi3_root) / target.name, target)
+    for path in target.iterdir():
+        path.chmod(0o644)
+else:
+    raise SystemExit(f"unknown signed fixture mode: {mode}")
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def sign(path):
+    signature = subprocess.check_output([
+        "openssl", "pkeyutl", "-sign", "-rawin", "-inkey", key, "-in", str(path)
+    ])
+    path.with_name(path.name + ".sig").write_text(signature.hex() + "\n")
+
+rows = []
+for line in manifest.read_text().splitlines():
+    if not line.startswith("target="):
+        rows.append(line)
+        continue
+    fields = dict(field.split("=", 1) for field in line.split("|"))
+    directory = root / fields["target"]
+    hardening_sha = digest(directory / "HARDENING-ATTESTATION")
+    provenance = directory / "PROVENANCE"
+    lines = provenance.read_text().splitlines()
+    lines = [line.rsplit(".", 1)[0] + "." + hardening_sha
+             if line.startswith("build_id=") else line for line in lines]
+    provenance.write_text("\n".join(lines) + "\n")
+    sign(provenance)
+    fields["provenance_sha256"] = digest(provenance)
+    fields["hardening_sha256"] = hardening_sha
+    rows.append("|".join(f"{name}={value}" for name, value in fields.items()))
+manifest.write_text("\n".join(rows) + "\n")
+sign(manifest)
+PY
+}
+
+expect_signed_rejection() {
+    local label=$1 expected=$2 root=$3
+    shift 3
+    if verify_signed "$root" "$@" >"$temp_dir/$label.log" 2>&1; then
+        printf 'error: signed matrix mutation was accepted: %s\n' "$label" >&2
+        exit 1
+    fi
+    grep -Fq -- "$expected" "$temp_dir/$label.log" || {
+        cat "$temp_dir/$label.log" >&2
+        printf 'error: signed matrix rejected for the wrong reason: %s\n' "$label" >&2
+        exit 1
+    }
+}
+
+verify_signed "$signed_root" --abi 3 >/dev/null
+signed_abi4=$temp_dir/signed-abi4
+signed_fixture "$signed_root" "$signed_abi4" abi4
+verify_signed "$signed_abi4" --abi 4 >/dev/null
+expect_signed_rejection abi4-default 'signed artifact metadata mismatch' "$signed_abi4"
+expect_signed_rejection abi4-downgrade 'signed artifact metadata mismatch' "$signed_abi4" --abi 3
+expect_signed_rejection abi3-as-abi4 'signed artifact metadata mismatch' "$signed_root" --abi 4
+for unsupported in 2 5 04 auto; do
+    expect_signed_rejection "unsupported-$unsupported" '--abi must be 3 or 4' \
+        "$signed_abi4" --abi "$unsupported"
+done
+for mutation in \
+    abi-version provenance-abi build-abi manifest-abi hardening-abi \
+    duplicate-hardening-abi duplicate-empty-hardening-abi mixed-target; do
+    fixture=$temp_dir/signed-$mutation
+    signed_fixture "$signed_abi4" "$fixture" "$mutation"
+    case "$mutation" in
+        abi-version|mixed-target) expected='signed artifact metadata mismatch' ;;
+        provenance-abi|build-abi) expected='non-canonical signed provenance' ;;
+        manifest-abi) expected='signed release manifest is incomplete, stale, or non-canonical' ;;
+        *hardening-abi) expected='signed hardening attestation ABI mismatch' ;;
+    esac
+    expect_signed_rejection "$mutation" "$expected" "$fixture" --abi 4
+done
+expect_signed_rejection abi4-forged-root 'invalid Ed25519 signature' \
+    "$signed_abi4" --abi 4 --trusted-public-key "$forged_public_key"
+cp -R "$signed_abi4" "$temp_dir/abi4-bad-signature"
+printf '%0128d\n' 0 > "$temp_dir/abi4-bad-signature/RELEASE-MANIFEST.sig"
+expect_signed_rejection abi4-bad-signature 'invalid Ed25519 signature' \
+    "$temp_dir/abi4-bad-signature" --abi 4
+cp -R "$signed_abi4" "$temp_dir/abi4-incomplete"
+rm -rf "$temp_dir/abi4-incomplete/aarch64-apple-ios"
+expect_signed_rejection abi4-incomplete 'signed matrix root has missing or unexpected entries' \
+    "$temp_dir/abi4-incomplete" --abi 4
+
 signed_tree_digest=$(python3 \
     "$script_dir/digest-op-auth-tree.py" --root "$signed_root")
 python3 "$script_dir/digest-op-auth-tree.py" \

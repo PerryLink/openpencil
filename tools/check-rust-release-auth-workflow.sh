@@ -380,6 +380,10 @@ unless android.fetch("uses") == "./.github/workflows/android-release.yml" &&
         '${{ secrets.OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN }}',
       "OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL" =>
         '${{ secrets.OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL }}',
+      "ANDROID_RELEASE_KEYSTORE_BASE64" => '${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}',
+      "ANDROID_RELEASE_KEYSTORE_PASSWORD" => '${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}',
+      "ANDROID_RELEASE_KEY_ALIAS" => '${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}',
+      "ANDROID_RELEASE_KEY_PASSWORD" => '${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}',
     } && !android.key?("with")
   raise "formal release must call the exact reusable Android asset lane"
 end

@@ -31,10 +31,52 @@ RUBY
 }
 
 workflow=$repo_root/.github/workflows/android-release.yml
+caller=$repo_root/.github/workflows/rust-release.yml
 signer=$repo_root/scripts/sign-android-release.sh
 app_gradle=$repo_root/packaging/android/app/build.gradle.kts
 sdk_installer=$repo_root/tools/install-pinned-android-sdk.sh
 verification=$repo_root/packaging/android/gradle/verification-metadata.xml
+
+for name in \
+    ANDROID_RELEASE_KEYSTORE_BASE64 \
+    ANDROID_RELEASE_KEYSTORE_PASSWORD \
+    ANDROID_RELEASE_KEY_ALIAS \
+    ANDROID_RELEASE_KEY_PASSWORD; do
+    declaration=$(printf '      %s:\n        description: Android release signing credential scoped to the protected signer\n        required: true' "$name")
+    forwarding=$(printf '      %s: ${{ secrets.%s }}' "$name" "$name")
+    misrouted=$(printf '      %s: ${{ secrets.OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN }}' "$name")
+    expect_rejected \
+        "missing signing secret declaration: $name" \
+        OPENPENCIL_ANDROID_RELEASE_WORKFLOW "$workflow" "$declaration" ''
+    expect_rejected \
+        "optional signing secret declaration: $name" \
+        OPENPENCIL_ANDROID_RELEASE_WORKFLOW "$workflow" \
+        "$declaration" "${declaration/required: true/required: false}"
+    expect_rejected \
+        "missing signing secret forwarding: $name" \
+        OPENPENCIL_ANDROID_RELEASE_CALLER "$caller" "$forwarding" ''
+    expect_rejected \
+        "misrouted signing secret forwarding: $name" \
+        OPENPENCIL_ANDROID_RELEASE_CALLER "$caller" "$forwarding" "$misrouted"
+done
+caller_secret_block='    secrets:'
+for name in \
+    OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_CN \
+    OPENPENCIL_BUILD_COLLAB_BOOTSTRAP_URL_GLOBAL \
+    ANDROID_RELEASE_KEYSTORE_BASE64 \
+    ANDROID_RELEASE_KEYSTORE_PASSWORD \
+    ANDROID_RELEASE_KEY_ALIAS \
+    ANDROID_RELEASE_KEY_PASSWORD; do
+    forwarding=$(printf '      %s: ${{ secrets.%s }}' "$name" "$name")
+    caller_secret_block+=$'\n'"$forwarding"
+done
+expect_rejected \
+    'broad secret inheritance' OPENPENCIL_ANDROID_RELEASE_CALLER "$caller" \
+    "$caller_secret_block" '    secrets: inherit'
+expect_rejected \
+    'signer receives the wrong password secret' OPENPENCIL_ANDROID_RELEASE_WORKFLOW "$workflow" \
+    '${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}' \
+    '${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}'
 
 expect_rejected \
     'independent dispatch trigger' OPENPENCIL_ANDROID_RELEASE_WORKFLOW "$workflow" \
@@ -79,4 +121,5 @@ expect_rejected \
     '<verify-metadata>true</verify-metadata>' \
     '<verify-metadata>false</verify-metadata>'
 
-printf 'check-android-release-workflow.test.sh: fail-closed mutations passed.\n'
+printf 'check-android-release-workflow.test.sh: %s fail-closed mutations passed.\n' \
+    "$mutation_index"
