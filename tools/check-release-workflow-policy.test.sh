@@ -98,6 +98,31 @@ elif str(mode) == "ios-only-input-default":
         default: false
         type: boolean"""
     new = old.replace("default: false", "default: true")
+elif str(mode) == "auth-only-input-default":
+    old = """      auth_validation_only:
+        description: Only verify locally built Windows Auth candidates
+        required: false
+        default: false
+        type: boolean"""
+    new = old.replace("default: false", "default: true")
+elif str(mode) == "auth-only-version-bypass":
+    old = "if: github.event_name != 'workflow_dispatch' || inputs.auth_validation_only != true"
+    new = "if: always()"
+elif str(mode) == "auth-only-broad-gate":
+    old = "if: github.event_name == 'workflow_dispatch' && inputs.auth_validation_only == true"
+    new = "if: always()"
+elif str(mode) == "auth-only-secrets":
+    old = "    uses: ./.github/workflows/auth-native-validation.yml"
+    new = old + "\n    secrets: inherit"
+elif str(mode) == "auth-only-normal-bypass":
+    start = text.index("  build:\n")
+    end = text.index("\n  web-docker:\n", start)
+    section = text[start:end]
+    if "    needs: version" not in section:
+        raise SystemExit("mutation marker missing: normal build needs")
+    text = text[:start] + section.replace("    needs: version", "    needs: auth-native-validation", 1) + text[end:]
+    destination.write_text(text)
+    raise SystemExit(0)
 elif str(mode) == "ios-only-ios-gate":
     old = "if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.ios_app_store_only == true)"
     new = "if: startsWith(github.ref, 'refs/tags/v')"
@@ -166,9 +191,16 @@ expect_rejected() {
 
 case ${1-} in
     rust)
+        "$repo_root/tools/check-rust-release-auth-workflow.sh" >"$temporary/rust-baseline.log" 2>&1 || {
+            cat "$temporary/rust-baseline.log" >&2
+            exit 1
+        }
+        ruby "$repo_root/tools/check-auth-native-validation-workflow.test.rb"
         for mutation in \
             mutable-action broad-permission job-secret mutable-package-assets \
             mutable-apt-source direct-cargo-cli ios-only-input-default \
+            auth-only-input-default auth-only-version-bypass auth-only-broad-gate \
+            auth-only-secrets auth-only-normal-bypass \
             ios-only-ios-gate ios-only-build-bypass ios-only-release-bypass \
             vcredist-workflow-define vcredist-toolset-gate \
             vcredist-scoop-cli-bypass vcredist-scoop-skip-postcheck; do

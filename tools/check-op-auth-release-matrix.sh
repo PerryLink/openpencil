@@ -246,6 +246,7 @@ targets=(
 )
 
 index=0
+local_full=0
 for target in "${targets[@]}"; do
     line_number=$((index + 8))
     matrix_line=$(sed -n "${line_number}p" "$manifest")
@@ -331,6 +332,9 @@ for target in "${targets[@]}"; do
         printf 'error: %s provenance has no recognized hardening profile\n' "$target" >&2
         exit 1
     fi
+    if grep -Eq '^(staging_format=local-|signer_revision=|execution_evidence_sha256=)' "$hardening"; then
+        local_full=1
+    fi
     require_exact_line "target=$target" "$hardening"
     require_exact_line "artifact=$artifact_name" "$hardening"
     require_exact_line "artifact_sha256=$artifact_sha" "$hardening"
@@ -339,6 +343,13 @@ for target in "${targets[@]}"; do
     require_exact_line "openpencil_revision=$openpencil_revision" "$hardening"
     index=$((index + 1))
 done
+
+if [[ "$local_full" -eq 1 ]]; then
+    python3 "$repo_root/tools/check-local-full-auth.py" --if-local-full \
+        --signed-root "$prebuilt_root" --trusted-public-key "$public_key" \
+        --version "$matrix_version" --source-revision "$source_revision" \
+        --openpencil-revision "$openpencil_revision" --build-id "$build_id"
+fi
 
 printf 'check-op-auth-release-matrix.sh: verified signed ABI %s matrix for %s (%s).\n' \
     "$matrix_abi" "$matrix_version" "$build_id"

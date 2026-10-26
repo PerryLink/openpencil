@@ -1,0 +1,46 @@
+name: Validate locally built Windows Auth
+
+"on":
+  workflow_call:
+    inputs:
+      manifest_sha256:
+        description: SHA-256 of the reviewed local candidate manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Runtime validation (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+    steps:
+      - name: Checkout exact verification inputs without credentials
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify digests and run the cross-linked ABI harness
+        shell: pwsh
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          VALIDATION_TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python tools/validate-local-windows-auth.py `
+            --expected-manifest-sha256 "$env:EXPECTED_MANIFEST_SHA256" `
+            --target "$env:VALIDATION_TARGET"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -134,6 +134,7 @@ cmp -s "$expected_root_entries" "$actual_root_entries" || {
 
 matrix_lines=$temp_dir/matrix-lines
 : > "$matrix_lines"
+local_full=0
 while IFS= read -r target; do
     target_root=$signed_root/$target
     [[ -d "$target_root" && ! -L "$target_root" ]] || {
@@ -173,6 +174,9 @@ while IFS= read -r target; do
         printf 'error: signed hardening attestation ABI mismatch for %s\n' "$target" >&2
         exit 1
     }
+    if grep -Eq '^(staging_format=local-|signer_revision=|execution_evidence_sha256=)' "$target_root/HARDENING-ATTESTATION"; then
+        local_full=1
+    fi
     hardening=op-auth-hardened-v1
     [[ "$target" == *-pc-windows-msvc ]] \
         && hardening=op-auth-signed-unobfuscated-v1
@@ -221,5 +225,12 @@ verify_signature \
     "$signed_root/RELEASE-MANIFEST" \
     "$signed_root/RELEASE-MANIFEST.sig" \
     'release matrix'
+
+if [[ "$local_full" -eq 1 ]]; then
+    python3 "$script_dir/check-local-full-auth.py" --if-local-full \
+        --signed-root "$signed_root" --trusted-public-key "$trusted_public_key" \
+        --version "$version" --source-revision "$private_head_sha" \
+        --openpencil-revision "$openpencil_sha" --build-id "$build_id"
+fi
 
 printf 'verify-signed-op-auth-matrix: verified signed ABI-v%s matrix (%s)\n' "$abi" "$build_id"

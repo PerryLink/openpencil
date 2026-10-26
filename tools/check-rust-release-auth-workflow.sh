@@ -74,9 +74,17 @@ unless manual == {
         "default" => false,
         "type" => "boolean",
       },
+      "auth_validation_only" => {
+        "description" => "Only verify locally built Windows Auth candidates",
+        "required" => false, "default" => false, "type" => "boolean",
+      },
+      "auth_validation_manifest_sha256" => {
+        "description" => "Reviewed local candidate manifest SHA-256",
+        "required" => false, "default" => "", "type" => "string",
+      },
     },
   }
-  raise "manual release must expose only the default-off iOS App Store lane selector"
+  raise "manual release selectors must be explicit and default-off"
 end
 raise "workflow permissions must default to contents:read" unless document.fetch("permissions") == {"contents" => "read"}
 expected_vcredist = {
@@ -118,6 +126,7 @@ end
 
 expected_permissions = {
   "version" => {"contents" => "read"},
+  "auth-native-validation" => {"contents" => "read"},
   "ios-app-store" => {"contents" => "read"},
   "android-release" => {"contents" => "read"},
   "build" => {"contents" => "read"},
@@ -137,7 +146,7 @@ expected_permissions.each do |name, permissions|
   raise "#{name} permissions exceed the reviewed minimum" unless jobs.fetch(name).fetch("permissions") == permissions
 end
 raise "secret-free version gate must not request the release environment" if version.key?("environment")
-reusable_jobs = %w[android-release]
+reusable_jobs = %w[android-release auth-native-validation]
 reusable_jobs.each do |name|
   raise "#{name} must not set a caller-side environment" if jobs.fetch(name).key?("environment")
 end
@@ -325,7 +334,7 @@ def depends_on?(jobs, name, target, seen = {})
   needs.include?(target) || needs.any? { |dependency| depends_on?(jobs, dependency, target, seen) }
 end
 
-(jobs.keys - ["version"]).each do |name|
+(jobs.keys - ["version", "auth-native-validation"]).each do |name|
   raise "#{name} can bypass the version/auth gate" unless depends_on?(jobs, name, "version")
 end
 
@@ -728,4 +737,5 @@ line_count=$(wc -l < "$workflow" | tr -d '[:space:]')
     exit 1
 }
 
+ruby "$repo_root/tools/check-auth-native-validation-workflow.rb" "$workflow"
 printf 'check-rust-release-auth-workflow.sh: release auth gates passed.\n'
