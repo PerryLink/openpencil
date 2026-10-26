@@ -222,6 +222,11 @@ pub(crate) fn incomplete_attempt(
         &outcome.inserted_root_ids,
         &text,
     ));
+    delivered = delivered.max(priced_items::delivered_count(
+        sink,
+        &outcome.inserted_root_ids,
+        &text,
+    ));
     if grid_dimensions(&text).is_none()
         && media_items::has_local_media_card_contract(&text, expected)
     {
@@ -242,7 +247,8 @@ pub(crate) fn incomplete_attempt(
             delivered = delivered.max(proof.card_ids.len());
         }
     }
-    if let Some((rows, columns)) = grid_dimensions(&text) {
+    let shape = grid_dimensions(&text).or_else(|| grid::columns_only_shape(&text, expected));
+    if let Some((rows, columns)) = shape {
         for id in &outcome.inserted_root_ids {
             if let Some(root) =
                 op_editor_core::walkers::find_node(sink.state().active_children(), &NodeId::new(id))
@@ -415,7 +421,7 @@ fn delivered_grid_cells(node: &PenNode, rows: usize, columns: usize) -> usize {
             |n| matches!(n,PenNode::Frame(f) if f.container.layout.as_ref()==Some(&group_layout)),
         )
     {
-        let counts: Vec<_> = groups
+        let cells: Vec<Vec<&PenNode>> = groups
             .iter()
             .map(|n| {
                 n.children()
@@ -423,10 +429,21 @@ fn delivered_grid_cells(node: &PenNode, rows: usize, columns: usize) -> usize {
                     .unwrap_or(&[])
                     .iter()
                     .filter(|n| is_node_visible(n) && is_item_node(n))
-                    .count()
+                    .collect()
             })
             .collect();
-        if counts.iter().all(|&n| n <= cell_count) {
+        // Cells are one kind of node. A row of two cards read as two
+        // columns would otherwise count each card's photo and caption frame
+        // as two cells and pass a half-delivered 2×2.
+        let one_kind = cells
+            .iter()
+            .flatten()
+            .map(|cell| std::mem::discriminant(*cell))
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            <= 1;
+        let counts: Vec<usize> = cells.iter().map(Vec::len).collect();
+        if one_kind && counts.iter().all(|&n| n <= cell_count) {
             total = counts.into_iter().sum();
         }
     }
@@ -672,6 +689,13 @@ mod text_line_tests;
 
 #[path = "subtask_completeness_indicator.rs"]
 mod indicator;
+
+#[path = "subtask_completeness_priced_items.rs"]
+mod priced_items;
+
+#[cfg(test)]
+#[path = "subtask_completeness_priced_items_tests.rs"]
+mod priced_items_tests;
 
 #[cfg(test)]
 #[path = "subtask_completeness_indicator_tests.rs"]

@@ -37,6 +37,23 @@ pub(super) fn grid_dimensions(text: &str) -> Option<(usize, usize)> {
         .max_by_key(|&(rows, columns)| rows * columns)
 }
 
+/// A grid that names only its columns ("两列四张真实花束照片网格", astra
+/// rerun of the florist plan): the promised count fills whole rows of them.
+pub(super) fn columns_only_shape(text: &str, expected: usize) -> Option<(usize, usize)> {
+    if !text.to_ascii_lowercase().contains("grid") && !text.contains("网格") {
+        return None;
+    }
+    static COLUMNS: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?P<columns>\d[\d,]*|[一二两三四五六七八九十]+)\s*列")
+            .expect("valid columns pattern")
+    });
+    let columns = COLUMNS
+        .captures_iter(text)
+        .filter_map(|captures| parse_count(captures.name("columns")?.as_str()))
+        .find(|columns| (2..=12).contains(columns))?;
+    (expected > columns && expected.is_multiple_of(columns)).then_some((expected / columns, columns))
+}
+
 /// "6 行 × 7 列", "6行7列", "6 rows × 7 columns", "7 columns × 6 rows": the
 /// number attached to the row/column noun names the shape in either order,
 /// and beats every bare a×b pair in the same text (those may be cell sizes).
