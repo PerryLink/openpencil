@@ -95,6 +95,7 @@ pub mod hub_auth_error;
 pub mod image_relevance_judge;
 mod import_html_url;
 pub mod import_html_url_error;
+pub mod kimi_model_catalog;
 pub mod loop_blocker_ledger;
 pub mod mcp_live;
 pub mod mcp_serve;

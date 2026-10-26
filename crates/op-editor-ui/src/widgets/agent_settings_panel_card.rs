@@ -20,7 +20,7 @@ use crate::widgets::agent_settings_rows::{
     ROW_SECOND_LINE_BASELINE, SETTINGS_FONT_FAMILY,
 };
 use crate::widgets::brand_icons::{
-    paint_brand_logo, paint_deepseek_harness_logo, paint_opencode_logo, BrandLogo,
+    paint_brand_logo, paint_deepseek_harness_logo, paint_kimi_logo, paint_opencode_logo, BrandLogo,
 };
 use crate::widgets::button::tokens_from_theme;
 use crate::widgets::PaintCx;
@@ -106,6 +106,9 @@ pub(super) fn paint_agent_card(
         ),
         AgentProvider::DeepSeekHarness => {
             paint_deepseek_harness_logo(cx.backend, icon_top_left, AVATAR_ICON, theme.foreground)
+        }
+        AgentProvider::Kimi => {
+            paint_kimi_logo(cx.backend, icon_top_left, AVATAR_ICON, theme.foreground)
         }
     }
     let text_x = card.origin.x + 16.0 + AVATAR_SIZE + 14.0;

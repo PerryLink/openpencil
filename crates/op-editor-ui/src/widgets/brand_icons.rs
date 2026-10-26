@@ -216,6 +216,32 @@ pub fn paint_deepseek_harness_logo(
     backend.fill_oval(dot, color);
 }
 
+/// Kimi Code logo — PLACEHOLDER primitive, deliberately NOT the official
+/// Moonshot mark (same policy as the OpenCode / DeepSeek Harness
+/// primitives above). Abstract mark in a 24×24 viewBox: a stroked `K`
+/// with a filled dot at its upper right, drawn from basic backend
+/// primitives so it renders on every backend. `size` is the side length.
+pub fn paint_kimi_logo(
+    backend: &mut dyn RenderBackend,
+    top_left: Point2D,
+    size: f32,
+    color: Color,
+) {
+    let s = size / 24.0;
+    let p = |px: f32, py: f32| Point2D::new(top_left.x + px * s, top_left.y + py * s);
+    let w = 2.2 * s;
+    // Stem (6,4) → (6,20); arms meet the stem at (6,13).
+    backend.stroke_line(p(6.0, 4.0), p(6.0, 20.0), color, w);
+    backend.stroke_line(p(6.0, 13.0), p(15.0, 5.0), color, w);
+    backend.stroke_line(p(9.5, 10.5), p(16.0, 20.0), color, w);
+    // Dot r=2 at (19,5).
+    let dot = Rect {
+        origin: p(17.0, 3.0),
+        size: Point2D::new(4.0 * s, 4.0 * s),
+    };
+    backend.fill_oval(dot, color);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -106,6 +106,13 @@ fn no_models_error(locale: Locale, provider: AgentProvider) -> String {
                 &[("name", "DeepSeek Harness")],
             );
         }
+        AgentProvider::Kimi => {
+            return tw(
+                locale,
+                "providerProbe.noModelList",
+                &[("name", "Kimi Code")],
+            );
+        }
     };
     t(locale, key)
 }
@@ -145,6 +152,7 @@ pub fn connect_provider(provider: AgentProvider, locale: Locale) -> ProbeOutcome
         AgentProvider::Antigravity => crate::cli_provider_probe::connect_antigravity(),
         AgentProvider::GrokBuild => crate::cli_provider_probe::connect_grok_build(),
         AgentProvider::DeepSeekHarness => crate::cli_provider_probe::connect_deepseek_harness(),
+        AgentProvider::Kimi => crate::cli_provider_probe::connect_kimi(),
     }
 }
 
@@ -187,6 +195,8 @@ fn install_command_for_platform(
         AgentProvider::GrokBuild if windows => "irm https://x.ai/cli/install.ps1 | iex",
         AgentProvider::GrokBuild => "curl -fsSL https://x.ai/cli/install.sh | bash",
         AgentProvider::DeepSeekHarness => "npm install -g @deepseek-ai/dsh",
+        AgentProvider::Kimi if windows => "irm https://code.kimi.com/kimi-code/install.ps1 | iex",
+        AgentProvider::Kimi => "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash",
     }
 }
 

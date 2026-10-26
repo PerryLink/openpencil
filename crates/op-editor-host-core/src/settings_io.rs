@@ -67,7 +67,7 @@ pub struct Fingerprint {
     openverse_credential_owner: Option<String>,
     auto_update_enabled: bool,
     experimental_features_enabled: bool,
-    connected: [bool; 7],
+    connected: [bool; 8],
     builtin_agents: Vec<BuiltinAgentConfig>,
     acp_agents: Vec<AcpAgentConfig>,
     image_gen_profiles: Vec<ImageGenProfile>,
@@ -467,23 +467,25 @@ fn apply_payload_with_options(
 /// Remove the retired Gemini CLI slot from positional v1 settings without
 /// shifting the providers that followed it. Released settings used either
 /// five slots (through Gemini) or seven slots (Gemini + Antigravity + Grok);
-/// the current seven-slot layout omits Gemini and appends DeepSeek Harness
-/// at the tail (see `chat::models::AgentProvider::ALL` — append-only, so
-/// persisted indices never shift).
+/// the current layout omits Gemini and appends DeepSeek Harness, then Kimi
+/// Code, at the tail (see `chat::models::AgentProvider::ALL` — append-only,
+/// so persisted indices never shift).
 ///
-/// Length disambiguation: 7 is the CURRENT layout, so a 7-entry file is
-/// copied verbatim (a round-trip must be lossless). The one casualty is a
+/// Length disambiguation: 7 is the pre-Kimi layout and 8 the current one,
+/// so both are copied verbatim (a round-trip must be lossless); a 7-entry
+/// file simply leaves Kimi disconnected. The one casualty is a
 /// legacy Gemini-era 7-entry file that was never opened since the
 /// retirement — its index-4 Gemini flag reads as Antigravity — but the
 /// startup reconnect replay re-probes every remembered provider, so an
 /// uninstalled / unauthenticated CLI honestly degrades back to
 /// disconnected on first launch. Treating 7 as legacy instead would
 /// corrupt EVERY current file on every load, which is far worse.
-fn migrate_connected_provider_flags(flags: Vec<bool>) -> [bool; 7] {
-    let mut migrated = [false; 7];
+fn migrate_connected_provider_flags(flags: Vec<bool>) -> [bool; 8] {
+    let mut migrated = [false; 8];
     match flags.len() {
         // Current layout (or a longer one written by a newer build).
-        7.. => migrated.copy_from_slice(&flags[..7]),
+        8.. => migrated.copy_from_slice(&flags[..8]),
+        7 => migrated[..7].copy_from_slice(&flags),
         6 => migrated[..6].copy_from_slice(&flags),
         5 => migrated[..4].copy_from_slice(&flags[..4]),
         _ => {

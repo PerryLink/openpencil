@@ -11,6 +11,7 @@ impl AgentProvider {
             Self::Antigravity => "antigravity",
             Self::GrokBuild => "grok-build",
             Self::DeepSeekHarness => "deepseek-harness",
+            Self::Kimi => "kimi",
         }
     }
 
@@ -24,6 +25,7 @@ impl AgentProvider {
             "antigravity" => Some(Self::Antigravity),
             "grok-build" => Some(Self::GrokBuild),
             "deepseek-harness" => Some(Self::DeepSeekHarness),
+            "kimi" => Some(Self::Kimi),
             _ => None,
         }
     }

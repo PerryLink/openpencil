@@ -129,6 +129,7 @@ pub fn missing_models_connect_error(locale: crate::Locale, provider: AgentProvid
         }
         AgentProvider::GrokBuild => "Grok Build",
         AgentProvider::DeepSeekHarness => "DeepSeek Harness",
+        AgentProvider::Kimi => "Kimi Code",
     };
     op_i18n::translate_with(locale, "providerProbe.noModelList", &[("name", name)])
 }
@@ -238,7 +239,7 @@ impl AgentSettings {
         self.provider_verified_connected_at(Self::provider_index(provider))
     }
 
-    pub fn verified_connected_mask(&self) -> [bool; 7] {
+    pub fn verified_connected_mask(&self) -> [bool; 8] {
         std::array::from_fn(|i| self.provider_verified_connected_at(i))
     }
 
@@ -408,7 +409,7 @@ mod tests {
         assert!(s.provider_verified_connected(AgentProvider::ClaudeCode));
         assert_eq!(
             s.verified_connected_mask(),
-            [true, false, false, false, false, false, false]
+            [true, false, false, false, false, false, false, false]
         );
     }
 }

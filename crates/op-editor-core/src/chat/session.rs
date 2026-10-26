@@ -23,7 +23,7 @@ impl ChatState {
     ///
     /// [`available_models`]: ChatState::available_models
     /// [`discovered_models`]: ChatState::discovered_models
-    pub fn rebuild_available_models(&mut self, connected: &[bool; 7]) {
+    pub fn rebuild_available_models(&mut self, connected: &[bool; 8]) {
         let prev = self.available_models.get(self.selected_model).cloned();
         self.available_models = self
             .discovered_models

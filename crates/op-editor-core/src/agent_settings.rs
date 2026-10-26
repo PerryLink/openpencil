@@ -253,7 +253,7 @@ pub enum BuiltinModelMenuTarget {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentSettings {
     pub tab: AgentSettingsTab,
-    pub connected: [bool; 7],
+    pub connected: [bool; 8],
     /// The embedding host's real MCP endpoint (e.g. the VS Code
     /// extension's McpProxy URL), delivered via the bridge `init`
     /// message. When set, the MCP tab's client-config card displays
@@ -263,7 +263,7 @@ pub struct AgentSettings {
     pub embed_mcp_url: Option<String>,
     /// Probe-derived per-provider connect status, indexed like
     /// `connected`. Runtime-only — not persisted.
-    pub provider_connection: [ProviderConnection; 7],
+    pub provider_connection: [ProviderConnection; 8],
     /// Connect-press request seam — the desktop host drains this
     /// into the async provider probe (`provider_probe_host.rs`).
     pub pending_provider_connect: Option<AgentProvider>,
@@ -378,7 +378,7 @@ impl Default for AgentSettings {
     fn default() -> Self {
         Self {
             tab: AgentSettingsTab::Agents,
-            connected: [false; 7],
+            connected: [false; 8],
             embed_mcp_url: None,
             provider_connection: Default::default(),
             pending_provider_connect: None,

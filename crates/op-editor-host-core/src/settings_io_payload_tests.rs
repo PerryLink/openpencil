@@ -40,13 +40,11 @@ fn eight_cli_mcp_payload_drops_gemini_without_shifting_later_clis() {
 }
 
 #[test]
-fn seven_provider_connected_payload_is_the_current_layout_and_round_trips() {
-    // The current layout has seven slots (DeepSeek Harness appended at
-    // the tail). A 7-entry file must round-trip VERBATIM — treating it
-    // as the legacy Gemini-era layout would silently shift every saved
-    // connection on every load.
+fn eight_provider_connected_payload_is_the_current_layout_and_round_trips() {
+    // The current layout has eight slots (DeepSeek Harness, then Kimi Code,
+    // appended at the tail). An 8-entry file must round-trip VERBATIM.
     let payload: SettingsPayload = serde_json::from_str(
-        r#"{"version":1,"connected":[true,false,true,false,true,true,false]}"#,
+        r#"{"version":1,"connected":[true,false,true,false,true,true,false,true]}"#,
     )
     .unwrap();
     let mut dst = EditorState::new();
@@ -55,7 +53,26 @@ fn seven_provider_connected_payload_is_the_current_layout_and_round_trips() {
 
     assert_eq!(
         dst.editor_ui.agent_settings.connected,
-        [true, false, true, false, true, true, false]
+        [true, false, true, false, true, true, false, true]
+    );
+}
+
+#[test]
+fn seven_provider_connected_payload_keeps_flags_and_leaves_kimi_off() {
+    // Files written before Kimi Code joined have seven slots. They must be
+    // copied verbatim — treating them as the legacy Gemini-era layout would
+    // silently shift every saved connection — with the appended Kimi slot
+    // starting disconnected.
+    let payload: SettingsPayload =
+        serde_json::from_str(r#"{"version":1,"connected":[true,false,true,false,true,true,true]}"#)
+            .unwrap();
+    let mut dst = EditorState::new();
+
+    apply_payload(&mut dst, payload);
+
+    assert_eq!(
+        dst.editor_ui.agent_settings.connected,
+        [true, false, true, false, true, true, true, false]
     );
 }
 
@@ -72,7 +89,7 @@ fn six_provider_connected_payload_keeps_flags_and_leaves_dsh_off() {
 
     assert_eq!(
         dst.editor_ui.agent_settings.connected,
-        [true, false, true, false, true, true, false]
+        [true, false, true, false, true, true, false, false]
     );
 }
 
@@ -81,11 +98,11 @@ fn five_provider_connected_payload_drops_retired_gemini() {
     let payload: SettingsPayload =
         serde_json::from_str(r#"{"version":1,"connected":[true,false,false,false,true]}"#).unwrap();
     let mut dst = EditorState::new();
-    dst.editor_ui.agent_settings.connected = [false, false, false, false, true, true, true];
+    dst.editor_ui.agent_settings.connected = [false, false, false, false, true, true, true, true];
     apply_payload(&mut dst, payload);
     assert_eq!(
         dst.editor_ui.agent_settings.connected,
-        [true, false, false, false, false, false, false]
+        [true, false, false, false, false, false, false, false]
     );
 }
 
@@ -98,7 +115,7 @@ fn legacy_settings_without_connected_field_default_to_disconnected() {
     let payload: SettingsPayload = serde_json::from_str(legacy).unwrap();
     let mut dst = EditorState::new();
     apply_payload(&mut dst, payload);
-    assert_eq!(dst.editor_ui.agent_settings.connected, [false; 7]);
+    assert_eq!(dst.editor_ui.agent_settings.connected, [false; 8]);
 }
 
 #[test]

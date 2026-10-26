@@ -8,7 +8,7 @@ use crate::agent_settings_builtin_presets::{builtin_agent_preset, BuiltinAgentPr
 fn default_settings_are_quiescent() {
     let s = AgentSettings::default();
     assert_eq!(s.tab, AgentSettingsTab::Agents);
-    assert_eq!(s.connected, [false; 7]);
+    assert_eq!(s.connected, [false; 8]);
     assert!(s.builtin_agents.is_empty());
     assert!(s.builtin_agent_draft.is_none());
     assert!(s.acp_agent_draft.is_none());
@@ -52,7 +52,7 @@ fn tab_and_cli_arrays_cover_all_variants() {
 /// stable — see `chat::models::AgentProvider::ALL`.
 #[test]
 fn agent_provider_display_is_a_permutation_of_all_with_dsh_third() {
-    assert_eq!(AgentProvider::ALL.len(), 7);
+    assert_eq!(AgentProvider::ALL.len(), 8);
     assert_eq!(
         AgentProvider::ALL,
         [
@@ -63,6 +63,7 @@ fn agent_provider_display_is_a_permutation_of_all_with_dsh_third() {
             AgentProvider::Antigravity,
             AgentProvider::GrokBuild,
             AgentProvider::DeepSeekHarness,
+            AgentProvider::Kimi,
         ],
         "ALL is append-only: existing persisted indices must never shift"
     );
@@ -79,13 +80,15 @@ fn agent_provider_display_is_a_permutation_of_all_with_dsh_third() {
             "ALL entry {provider:?} is missing from DISPLAY"
         );
     }
-    // DeepSeek Harness renders right after Codex, before OpenCode.
+    // DeepSeek Harness renders right after Codex, then Kimi Code, both
+    // before OpenCode.
     assert_eq!(
-        AgentProvider::DISPLAY[..4],
+        AgentProvider::DISPLAY[..5],
         [
             AgentProvider::ClaudeCode,
             AgentProvider::CodexCli,
             AgentProvider::DeepSeekHarness,
+            AgentProvider::Kimi,
             AgentProvider::OpenCode,
         ]
     );
@@ -93,8 +96,10 @@ fn agent_provider_display_is_a_permutation_of_all_with_dsh_third() {
     for provider in AgentProvider::DISPLAY {
         assert_eq!(AgentProvider::ALL[provider.index()], provider);
     }
-    // Append-only invariant: DeepSeek Harness is the 7th (last) slot, so
-    // persisted flags for the previous six providers keep their meaning.
+    // Append-only invariant: DeepSeek Harness is the 7th slot and Kimi Code
+    // the 8th (last), so persisted flags for earlier providers keep their
+    // meaning.
+    assert_eq!(AgentProvider::Kimi.index(), 7);
     assert_eq!(AgentProvider::DeepSeekHarness.index(), 6);
     assert_eq!(AgentProvider::GrokBuild.index(), 5);
 }

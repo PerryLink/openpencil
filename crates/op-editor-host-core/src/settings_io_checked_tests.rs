@@ -120,12 +120,12 @@ fn checked_settings_load_migrates_retired_gemini_cli_slots() {
 
     load_checked_from_path(&mut state, &path).expect("legacy v1 layout should migrate");
 
-    // Seven connected slots are the CURRENT layout (DeepSeek Harness
-    // appended at the tail) — they round-trip verbatim; the MCP flags
-    // below are the legacy eight-slot layout that drops Gemini.
+    // Seven connected slots are the pre-Kimi layout (DeepSeek Harness
+    // appended at the tail) — copied verbatim with Kimi left off; the MCP
+    // flags below are the legacy eight-slot layout that drops Gemini.
     assert_eq!(
         state.editor_ui.agent_settings.connected,
-        [true, false, true, false, true, true, false]
+        [true, false, true, false, true, true, false, false]
     );
     assert_eq!(
         state.editor_ui.agent_settings.mcp_cli_enabled,

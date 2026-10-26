@@ -212,6 +212,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "ID model, mỗi dòng một mã",
         "builtin.typeModelManually" => "Không lấy được danh sách model. Nhập ID thủ công, mỗi dòng một mã.",
         "settings.provider.deepSeekHarness" => "Mô hình DeepSeek Harness",
+        "settings.provider.kimi" => "Mô hình Kimi Code",
         "settings.agents.deleteProvider" => "Xóa nhà cung cấp",
         "chat.mcpRequired" => "{cli} cần bật tích hợp OpenPencil MCP trong Cài đặt",
         "video.title" => "Video",

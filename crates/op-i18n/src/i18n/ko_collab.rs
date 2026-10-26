@@ -216,6 +216,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "모델 ID, 한 줄에 하나씩",
         "builtin.typeModelManually" => "모델 목록을 가져오지 못했습니다. 모델 ID를 한 줄에 하나씩 입력하세요",
         "settings.provider.deepSeekHarness" => "DeepSeek Harness 모델",
+        "settings.provider.kimi" => "Kimi Code 모델",
         "settings.agents.deleteProvider" => "프로바이더 삭제",
         "chat.mcpRequired" => "{cli}을(를) 사용하려면 설정에서 OpenPencil MCP 연동을 켜세요",
         "video.title" => "비디오",

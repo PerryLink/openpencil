@@ -208,6 +208,54 @@ pub fn connect_deepseek_harness_localized(locale: Locale) -> ProbeOutcome {
     }
 }
 
+/// See [`connect_antigravity`] for why this resolves its own locale.
+pub fn connect_kimi() -> ProbeOutcome {
+    connect_kimi_localized(crate::provider_probe::resolved_ui_locale())
+}
+
+/// Kimi Code connect probe: binary, `--version`, then the signed-in
+/// account's models (see `kimi_model_catalog` for why its listing is read
+/// through a dedicated, output-withholding path).
+pub fn connect_kimi_localized(locale: Locale) -> ProbeOutcome {
+    let Some(exe) = resolve_cli("kimi") else {
+        return not_installed(
+            tw(
+                locale,
+                "providerProbe.cliNotFound",
+                &[("name", "Kimi Code")],
+            ),
+            AgentProvider::Kimi,
+        );
+    };
+    let version = match cli_version(
+        locale,
+        CliName::Kimi,
+        &exe,
+        &["--version"],
+        "Kimi Code",
+        "`kimi`",
+    ) {
+        Ok(version) => version,
+        Err(error) => return failed(error.to_string()),
+    };
+    let models = match crate::kimi_model_catalog::query_kimi_models(locale, &exe) {
+        Ok(models) => models,
+        Err(error) => return failed(error.to_string()),
+    };
+    ProbeOutcome {
+        connected: true,
+        models,
+        connection_info: Some(tw(
+            locale,
+            "providerProbe.connectedViaCli",
+            &[("name", "Kimi Code")],
+        )),
+        hint_path: Some("~/.kimi-code/config.toml".to_string()),
+        version: Some(version),
+        ..ProbeOutcome::default()
+    }
+}
+
 fn not_installed(error: String, provider: AgentProvider) -> ProbeOutcome {
     ProbeOutcome {
         error: Some(error),

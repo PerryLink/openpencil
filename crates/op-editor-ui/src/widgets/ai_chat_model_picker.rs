@@ -13,7 +13,7 @@
 //! single picker entry.
 
 use crate::widgets::brand_icons::{
-    paint_brand_logo, paint_deepseek_harness_logo, paint_opencode_logo, BrandLogo,
+    paint_brand_logo, paint_deepseek_harness_logo, paint_kimi_logo, paint_opencode_logo, BrandLogo,
 };
 use crate::widgets::PaintCx;
 use crate::{Color, Point2D, Rect};
@@ -418,6 +418,7 @@ pub fn paint_provider_logo(
         AgentProvider::DeepSeekHarness => {
             paint_deepseek_harness_logo(cx.backend, top_left, size, color)
         }
+        AgentProvider::Kimi => paint_kimi_logo(cx.backend, top_left, size, color),
     }
 }
 
@@ -454,6 +455,7 @@ pub(super) fn provider_label(provider: AgentProvider) -> &'static str {
         AgentProvider::Antigravity => "ANTIGRAVITY",
         AgentProvider::GrokBuild => "GROK BUILD",
         AgentProvider::DeepSeekHarness => "DEEPSEEK HARNESS",
+        AgentProvider::Kimi => "KIMI CODE",
     }
 }
 
@@ -467,6 +469,7 @@ fn group_label(provider: AgentProvider, builtin: bool) -> &'static str {
             AgentProvider::Antigravity => "ANTIGRAVITY API KEY",
             AgentProvider::GrokBuild => "GROK BUILD API KEY",
             AgentProvider::DeepSeekHarness => "DEEPSEEK API KEY",
+            AgentProvider::Kimi => "KIMI API KEY",
         }
     } else {
         provider_label(provider)

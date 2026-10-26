@@ -204,6 +204,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "मॉडल आईडी, प्रति पंक्ति एक",
         "builtin.typeModelManually" => "मॉडल सूची प्राप्त नहीं हुई। मॉडल आईडी मैन्युअल रूप से दर्ज करें, प्रति पंक्ति एक।",
         "settings.provider.deepSeekHarness" => "DeepSeek Harness मॉडल",
+        "settings.provider.kimi" => "Kimi Code मॉडल",
         "settings.agents.deleteProvider" => "प्रदाता हटाएं",
         "chat.mcpRequired" => "{cli} के लिए सेटिंग्स में OpenPencil MCP इंटीग्रेशन चालू करें",
         "video.title" => "वीडियो",

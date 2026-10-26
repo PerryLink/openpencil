@@ -21,11 +21,12 @@ use op_host_services::chat_subprocess::SubprocessProvider;
 
 /// Build the `ChatProvider` for an agent index (into
 /// `AgentProvider::ALL`: 0 ClaudeCode, 1 CodexCli, 2 OpenCode,
-/// 3 GithubCopilot, 4 Antigravity, 5 GrokBuild, 6 DeepSeekHarness). Claude Code uses its
+/// 3 GithubCopilot, 4 Antigravity, 5 GrokBuild, 6 DeepSeekHarness, 7 Kimi). Claude Code uses its
 /// dedicated SDK adapter; Codex uses the subprocess transport; Copilot
 /// rides the official SDK; OpenCode chats over its local HTTP server
 /// (`chat_http_server.rs`); DeepSeek Harness is a one-shot subprocess
-/// bridge (`chat_subprocess_dsh.rs`).
+/// bridge (`chat_subprocess_dsh.rs`). Kimi Code has no canvas-tool wiring,
+/// so its chat turns ride the same tool-free transport as generation.
 ///
 /// `chat_session` selects the chat-panel constructors. Claude Code and Copilot
 /// both receive multi-turn context through the owning tab's `ChatRequest`
@@ -51,6 +52,8 @@ fn provider_for_agent(agent_idx: usize, chat_session: bool) -> Option<Box<dyn Ch
         4 => subprocess_provider(CliName::Antigravity, chat_session),
         5 => subprocess_provider(CliName::GrokBuild, chat_session),
         6 => subprocess_provider(CliName::Dsh, chat_session),
+        7 => SubprocessProvider::for_cli_generation(CliName::Kimi)
+            .map(|p| Box::new(p) as Box<dyn ChatProvider>),
         _ => None,
     }
 }
@@ -297,7 +300,22 @@ mod routing_tests {
         let chat = provider_for_agent(6, true).expect("chat DSH routes too");
         assert_eq!(chat.provider_label(), "DeepSeek Harness");
         // Out-of-range agent indices stay unrouted (fail-closed).
-        assert!(provider_for_agent(7, false).is_none());
+        assert!(provider_for_agent(8, false).is_none());
+    }
+
+    #[test]
+    fn kimi_routes_both_paths_to_the_tool_free_kimi_transport() {
+        // ALL index 7 is the append-only Kimi Code tail slot.
+        assert_eq!(
+            op_editor_core::AgentProvider::ALL[7],
+            op_editor_core::AgentProvider::Kimi
+        );
+        // Kimi has no canvas-tool wiring, so the chat panel takes the same
+        // generation transport as the orchestrator instead of no route.
+        for chat_session in [false, true] {
+            let provider = provider_for_agent(7, chat_session).expect("Kimi routes to a provider");
+            assert_eq!(provider.provider_label(), "Kimi Code");
+        }
     }
 
     #[test]

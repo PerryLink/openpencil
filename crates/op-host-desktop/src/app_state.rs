@@ -200,7 +200,7 @@ impl DesktopApp {
             kit_browser_open_persisted,
             provider_connect_job: None,
             provider_reconnect_queue: Vec::new(),
-            remembered_connections: [false; 7],
+            remembered_connections: [false; 8],
             last_seen_provider_phase: Default::default(),
             hovered_image_drop: false,
             drop_cursor: None,

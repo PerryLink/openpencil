@@ -230,6 +230,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "ID моделей, по одному в строке",
         "builtin.typeModelManually" => "Не удалось получить список моделей. Введите ID вручную, по одному в строке.",
         "settings.provider.deepSeekHarness" => "Модели DeepSeek Harness",
+        "settings.provider.kimi" => "Модели Kimi Code",
         "settings.agents.deleteProvider" => "Удалить провайдера",
         "chat.mcpRequired" => "Для {cli} нужно включить интеграцию OpenPencil MCP в настройках",
         "video.title" => "Видео",

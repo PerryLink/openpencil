@@ -50,6 +50,9 @@ pub(crate) fn bounded_cli_output(
 ) -> BoundedProbe {
     let env = match cli {
         CliName::Codex => crate::chat_subprocess_quirks::codex_child_env(),
+        // Kimi's turns run with the shared scrubbed environment
+        // (`child_env_for_cli`); its probes must match.
+        CliName::Kimi => crate::chat_spawn::scrubbed_child_env(),
         _ => {
             let Some(env) = chat_subprocess_safety::child_env(Some(cli)) else {
                 return BoundedProbe::Failed;

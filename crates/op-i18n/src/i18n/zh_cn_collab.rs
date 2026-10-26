@@ -200,6 +200,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "模型 ID，每行一个",
         "builtin.typeModelManually" => "获取模型列表失败，请手动输入模型 ID，每行一个",
         "settings.provider.deepSeekHarness" => "DeepSeek Harness 模型",
+        "settings.provider.kimi" => "Kimi Code 模型",
         "settings.agents.deleteProvider" => "删除服务商",
         "chat.mcpRequired" => "{cli} 需要在设置中开启 OpenPencil MCP 集成",
         "video.title" => "视频",

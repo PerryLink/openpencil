@@ -164,7 +164,7 @@ impl DesktopApp {
     /// too but were never non-`Idle` to begin with.
     pub(crate) fn persist_connection_changes(&mut self) {
         let settings = &self.host.editor_state().editor_ui.agent_settings;
-        let phases: [ProviderConnectPhase; 7] =
+        let phases: [ProviderConnectPhase; 8] =
             std::array::from_fn(|index| settings.provider_connection[index].phase);
         let mut withdrawn_any = false;
         for (index, phase) in phases.iter().enumerate() {
@@ -274,14 +274,14 @@ mod tests {
 
     pub(super) fn reset_settings(app: &mut DesktopApp) {
         let es = app.host.editor_state_mut();
-        es.editor_ui.agent_settings.connected = [false; 7];
+        es.editor_ui.agent_settings.connected = [false; 8];
         es.editor_ui.agent_settings.provider_connection = Default::default();
         es.editor_ui.agent_settings.pending_provider_connect = None;
         es.editor_ui.agent_settings.builtin_agents.clear();
         es.editor_ui.agent_settings.acp_agents.clear();
         es.chat.discovered_models.clear();
         es.rebuild_chat_models();
-        app.remembered_connections = [false; 7];
+        app.remembered_connections = [false; 8];
         app.last_seen_provider_phase = Default::default();
     }
 
@@ -529,7 +529,7 @@ mod remembered_connection_tests {
             .expect("home directory")
             .join(".openpencil");
 
-        crate::agent_connect_store::save(&[true, false, false, false, false, false, false]);
+        crate::agent_connect_store::save(&[true, false, false, false, false, false, false, false]);
 
         let root = op_config_store::ConfigStore::user()
             .expect("a user root")
@@ -617,7 +617,7 @@ mod remembered_connection_tests {
         assert!(app.drain_provider_connect());
         assert_eq!(
             app.remembered_connections,
-            [true, false, false, false, false, false, false]
+            [true, false, false, false, false, false, false, false]
         );
     }
 
@@ -636,7 +636,7 @@ mod remembered_connection_tests {
             .disconnect_provider(AgentProvider::OpenCode);
         app.persist_connection_changes();
 
-        assert_eq!(app.remembered_connections, [false; 7]);
+        assert_eq!(app.remembered_connections, [false; 8]);
     }
 
     #[test]
@@ -647,12 +647,12 @@ mod remembered_connection_tests {
         // leaves behind. Only the transition tells them apart.
         let mut app = DesktopApp::new(None);
         reset_settings(&mut app);
-        app.remembered_connections = [true; 7];
+        app.remembered_connections = [true; 8];
 
         app.persist_connection_changes();
         app.persist_connection_changes();
 
-        assert_eq!(app.remembered_connections, [true; 7]);
+        assert_eq!(app.remembered_connections, [true; 8]);
     }
 
     #[test]

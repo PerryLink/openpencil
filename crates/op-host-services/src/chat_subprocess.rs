@@ -245,7 +245,10 @@ impl SubprocessProvider {
         let mut args = self.args.clone();
         if let (Some(flag), Some(model)) = (self.model_flag, request.model_id()) {
             let provider_default = model == "default"
-                && matches!(self.cli, Some(CliName::Antigravity | CliName::GrokBuild));
+                && matches!(
+                    self.cli,
+                    Some(CliName::Antigravity | CliName::GrokBuild | CliName::Kimi)
+                );
             if !provider_default {
                 args.push(flag.into());
                 args.push(match self.cli {

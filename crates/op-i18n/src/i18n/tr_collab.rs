@@ -200,6 +200,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "Model kimlikleri, her satıra bir tane",
         "builtin.typeModelManually" => "Model listesi alınamadı. Kimlikleri elle, her satıra bir tane girin.",
         "settings.provider.deepSeekHarness" => "DeepSeek Harness modelleri",
+        "settings.provider.kimi" => "Kimi Code modelleri",
         "settings.agents.deleteProvider" => "Sağlayıcıyı sil",
         "chat.mcpRequired" => "{cli} için Ayarlar'da OpenPencil MCP entegrasyonunu açın",
         "video.title" => "Video",

@@ -237,10 +237,10 @@ fn imported_agents_are_excluded_from_persistence() {
 
 #[test]
 fn connected_state_round_trips_through_payload() {
-    // Connect Claude (0) + Antigravity (4) + DeepSeek Harness (6,
-    // the append-only tail slot), leave the rest off.
+    // Connect Claude (0) + Antigravity (4) + DeepSeek Harness (6) + Kimi
+    // Code (7, the append-only tail slot), leave the rest off.
     let mut src = EditorState::new();
-    src.editor_ui.agent_settings.connected = [true, false, false, false, true, false, true];
+    src.editor_ui.agent_settings.connected = [true, false, false, false, true, false, true, true];
     // Serialize → JSON → deserialize, the real on-disk path.
     let json = serde_json::to_string(&to_payload(&src)).unwrap();
     let payload: SettingsPayload = serde_json::from_str(&json).unwrap();
@@ -248,7 +248,7 @@ fn connected_state_round_trips_through_payload() {
     apply_payload(&mut dst, payload);
     assert_eq!(
         dst.editor_ui.agent_settings.connected,
-        [true, false, false, false, true, false, true]
+        [true, false, false, false, true, false, true, true]
     );
 }
 

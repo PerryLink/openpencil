@@ -44,7 +44,7 @@ impl EditorState {
         let connected = if self.editor_ui.external_cli_available {
             self.editor_ui.agent_settings.verified_connected_mask()
         } else {
-            [false; 7]
+            [false; 8]
         };
         let mut runtime_entries = self
             .editor_ui

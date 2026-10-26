@@ -200,6 +200,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "builtin.modelsOnePerLine" => "Modell-IDs, eine pro Zeile",
         "builtin.typeModelManually" => "Modellliste konnte nicht abgerufen werden. IDs manuell eingeben, eine pro Zeile.",
         "settings.provider.deepSeekHarness" => "DeepSeek-Harness-Modelle",
+        "settings.provider.kimi" => "Kimi-Code-Modelle",
         "settings.agents.deleteProvider" => "Anbieter löschen",
         "chat.mcpRequired" => "{cli} benötigt die in den Einstellungen aktivierte OpenPencil-MCP-Integration",
         "video.title" => "Video",
