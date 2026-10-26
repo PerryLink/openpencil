@@ -262,7 +262,7 @@ impl<'a> HomeSurface<'a> {
             layout::compact::collapse_for_focused_composer(&mut layout);
         }
         connect::adapt_connect_card(&mut layout, self.ui);
-        recent_names::adapt_layout(&mut layout, self.recent_files.len());
+        recent_names::adapt_layout(&mut layout, self.recent_files.len(), self.ui.locale);
         if self.works_page() {
             layout.open_file = self.works_layout(viewport_width, viewport_height).open_file;
         }

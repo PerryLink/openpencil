@@ -57,9 +57,35 @@ pub fn picker_view_height(models: &[ModelEntry], search: &str) -> f32 {
 /// the footer are fixed chrome, so only the list band between them
 /// scrolls.
 pub fn max_picker_scroll(models: &[ModelEntry], search: &str) -> f32 {
-    let view_list_h =
-        (picker_view_height(models, search) - MODEL_SEARCH_H - MODEL_FOOTER_H).max(0.0);
-    (picker_list_height(models, search) - view_list_h).max(0.0)
+    max_picker_scroll_in_rect(
+        models,
+        search,
+        Rect::xywh(0.0, 0.0, 0.0, picker_view_height(models, search)),
+    )
+}
+
+/// Scroll range for the actual card, including keyboard-constrained cards.
+pub fn max_picker_scroll_in_rect(models: &[ModelEntry], search: &str, rect: Rect) -> f32 {
+    (picker_list_height(models, search) - model_list_rect(rect).size.y).max(0.0)
+}
+
+/// Keep fixed search/footer chrome and the scrolling list inside the visible
+/// surface. Paint, hit-testing and scrolling must all consume this same card.
+pub fn fit_picker_to_bounds(card: Rect, bounds: Rect) -> Rect {
+    let width = card.size.x.max(0.0).min(bounds.size.x.max(0.0));
+    let height = card.size.y.max(0.0).min(bounds.size.y.max(0.0));
+    Rect::xywh(
+        card.origin.x.clamp(
+            bounds.origin.x,
+            bounds.origin.x + bounds.size.x.max(0.0) - width,
+        ),
+        card.origin.y.clamp(
+            bounds.origin.y,
+            bounds.origin.y + bounds.size.y.max(0.0) - height,
+        ),
+        width,
+        height,
+    )
 }
 
 /// One laid-out row in the dropdown.
@@ -259,7 +285,11 @@ pub fn model_picker_hit(
     walk_rows(
         models,
         search,
-        list_rect.origin.y - state.scroll.offset,
+        list_rect.origin.y
+            - state
+                .scroll
+                .offset
+                .clamp(0.0, max_picker_scroll_in_rect(models, search, rect)),
         |row, y, h| {
             if point.y >= y
                 && point.y < y + h
@@ -278,9 +308,16 @@ pub fn model_picker_hit(
 
 /// The fixed footer action row at the card's bottom edge.
 fn footer_rect(rect: Rect) -> Rect {
+    // Preserve the search field when the keyboard leaves too little room
+    // for both fixed controls. The footer returns when space is available.
+    let height = if rect.size.y >= MODEL_SEARCH_H + MODEL_FOOTER_H {
+        MODEL_FOOTER_H
+    } else {
+        0.0
+    };
     Rect {
-        origin: Point2D::new(rect.origin.x, rect.origin.y + rect.size.y - MODEL_FOOTER_H),
-        size: Point2D::new(rect.size.x, MODEL_FOOTER_H.min(rect.size.y)),
+        origin: Point2D::new(rect.origin.x, rect.origin.y + rect.size.y - height),
+        size: Point2D::new(rect.size.x, height),
     }
 }
 
@@ -291,11 +328,12 @@ fn footer_rect(rect: Rect) -> Rect {
 /// by that reckoning, so a caller that only asked the row question
 /// painted a blue action that did nothing when clicked.
 pub fn footer_action_hit(rect: Rect, point: Point2D) -> bool {
-    footer_rect(rect).contains(point)
+    let footer = footer_rect(rect);
+    footer.size.y > 0.0 && rect.contains(point) && footer.contains(point)
 }
 
 pub fn search_clear_hit(rect: Rect, point: Point2D, search: &str) -> bool {
-    !search.is_empty() && search_clear_rect(rect).contains(point)
+    !search.is_empty() && rect.contains(point) && search_clear_rect(rect).contains(point)
 }
 
 /// The scrollable list band between the fixed search strip and the

@@ -12,7 +12,7 @@
 use super::WidgetHostNative;
 use crate::backend::NativeFrameBackend;
 use op_editor_ui::widgets::ai_chat_model_picker::{
-    max_picker_scroll, model_picker_hit, paint_model_picker, search_clear_hit, SelectHit,
+    fit_picker_to_bounds, model_picker_hit, paint_model_picker, search_clear_hit, SelectHit,
 };
 use op_editor_ui::widgets::home_surface::home_model_picker_rects;
 use op_editor_ui::widgets::{HomeSurface, PaintCx, Widget};
@@ -27,6 +27,7 @@ impl WidgetHostNative {
         y: f32,
         viewport_width: f32,
         viewport_height: f32,
+        allow_touch_panel_defer: bool,
     ) -> Option<bool> {
         if !self.home_visible() {
             return None;
@@ -63,6 +64,11 @@ impl WidgetHostNative {
             return Some(true);
         }
         if account_ui {
+            if allow_touch_panel_defer
+                && self.begin_model_picker_touch_gesture(x, y, viewport_width, viewport_height)
+            {
+                return Some(true);
+            }
             return self.press_home_model_picker(x, y, viewport_width, viewport_height);
         }
         None
@@ -218,12 +224,25 @@ impl WidgetHostNative {
             .chat_model_picker_input
             .text()
             .to_string();
-        home_model_picker_rects(
+        let card = home_model_picker_rects(
             &layout,
             viewport_width,
             &self.editor_state.chat.available_models,
             &search,
-        )
+        )?;
+        Some(if self.editor_state.editor_ui.touch_chrome() {
+            fit_picker_to_bounds(
+                card,
+                Rect::xywh(
+                    8.0,
+                    8.0,
+                    (viewport_width - 16.0).max(0.0),
+                    (self.keyboard_visible_bottom(viewport_height) - 16.0).max(0.0),
+                ),
+            )
+        } else {
+            card
+        })
     }
 
     /// Press routing for the Home-anchored picker: rows select, the
@@ -363,26 +382,8 @@ impl WidgetHostNative {
         if !self.home_visible() || !self.editor_state.editor_ui.chat_model_picker.open {
             return None;
         }
-        let point = Point2D::new(x, y);
-        let card = self.home_model_picker_geometry(viewport_width, viewport_height)?;
-        if !card.contains(point) {
-            return None;
-        }
-        let search = self
-            .editor_state
-            .editor_ui
-            .chat_model_picker_input
-            .text()
-            .to_string();
-        let models = self.editor_state.chat.available_models.clone();
-        let max = max_picker_scroll(&models, &search);
-        let picker = &mut self.editor_state.editor_ui.chat_model_picker;
-        let next = (picker.scroll.offset - delta_y).clamp(0.0, max);
-        if next != picker.scroll.offset {
-            picker.scroll.offset = next;
-            self.mark_dirty();
-        }
-        Some(true)
+        self.try_scroll_model_picker(x, y, delta_y, viewport_width, viewport_height)
+            .then_some(true)
     }
 }
 

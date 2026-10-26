@@ -68,6 +68,9 @@ mod chat_input_caret_tests;
 mod chat_model_picker_caret;
 #[cfg(test)]
 mod chat_model_picker_caret_tests;
+mod chat_model_picker_touch;
+#[cfg(test)]
+mod chat_model_picker_touch_tests;
 #[cfg(test)]
 mod chat_send_tests;
 #[cfg(test)]
@@ -275,6 +278,7 @@ mod toolbar_hover;
 mod top_bar_home_tests;
 #[cfg(test)]
 mod top_bar_tooltip_tests;
+mod touch_gesture_cancel;
 mod touch_panel_gesture;
 #[cfg(test)]
 mod touch_panel_gesture_tests;

@@ -100,30 +100,40 @@ pub(super) fn paint_recent(
         palette.line,
         1.0,
     );
+    let (mut title_rect, mut content_rect) = super::super::recent_names::row_rects(layout, locale);
+    title_rect.origin.y += dy;
+    content_rect.origin.y += dy;
+    let title = super::super::recent_names::fit_label(
+        copy::home_str(locale, "home.recent.title"),
+        title_rect.size.x,
+        |label| {
+            cx.backend
+                .measure_text_family_styled(label, 16.0, SANS, 650, false)
+        },
+    );
     text_weighted(
         cx,
-        copy::home_str(locale, "home.recent.title"),
+        &title,
         Point2D::new(
-            row.origin.x,
-            jian_widgets::centered_text_baseline_y(
-                Rect::xywh(row.origin.x, row.origin.y, 96.0, 32.0),
-                16.0,
-            ),
+            title_rect.origin.x,
+            jian_widgets::centered_text_baseline_y(title_rect, 16.0),
         ),
         16.0,
         palette.ink,
         650,
     );
     if surface.recent_files.is_empty() {
+        let empty = super::super::recent_names::fit_label(
+            copy::home_str(locale, "home.recent.empty"),
+            content_rect.size.x,
+            |label| cx.backend.measure_text_family(label, 12.0, SANS),
+        );
         text(
             cx,
-            copy::home_str(locale, "home.recent.empty"),
+            &empty,
             Point2D::new(
-                row.origin.x + 96.0,
-                jian_widgets::centered_text_baseline_y(
-                    Rect::xywh(row.origin.x, row.origin.y, row.size.x, 32.0),
-                    12.0,
-                ),
+                content_rect.origin.x,
+                jian_widgets::centered_text_baseline_y(content_rect, 12.0),
             ),
             12.0,
             palette.muted,

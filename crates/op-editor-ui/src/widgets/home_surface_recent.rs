@@ -2,9 +2,38 @@
 use super::{HomeLayout, HomeSurface, StudioPalette};
 use crate::widgets::PaintCx;
 use crate::{Point2D, Rect};
-use op_editor_core::HomeHit;
+use op_editor_core::{HomeHit, Locale};
 
-pub(super) fn adapt_layout(layout: &mut HomeLayout, count: usize) {
+/// Shared title and content bands keep paint and hit geometry in one row.
+/// Reserve locale-aware space without depending on a paint backend; paint
+/// additionally fits text using the actual font metrics.
+pub(super) fn row_rects(layout: &HomeLayout, locale: Locale) -> (Rect, Rect) {
+    if layout.recent.size.x <= 0.0 {
+        return (Rect::ZERO, Rect::ZERO);
+    }
+    let available = (layout.new_canvas.origin.x - 12.0 - layout.recent.origin.x).max(0.0);
+    let title_width =
+        (super::copy::estimate_text_w(super::copy::home_str(locale, "home.recent.title"), 16.0)
+            + 16.0)
+            .min(available);
+    let content_offset = (title_width + 16.0).min(available);
+    (
+        Rect::xywh(
+            layout.recent.origin.x,
+            layout.new_canvas.origin.y,
+            title_width,
+            layout.new_canvas.size.y,
+        ),
+        Rect::xywh(
+            layout.recent.origin.x + content_offset,
+            layout.new_canvas.origin.y,
+            available - content_offset,
+            layout.new_canvas.size.y,
+        ),
+    )
+}
+
+pub(super) fn adapt_layout(layout: &mut HomeLayout, count: usize, locale: Locale) {
     if layout.recent.size.x <= 0.0 {
         return;
     }
@@ -13,15 +42,15 @@ pub(super) fn adapt_layout(layout: &mut HomeLayout, count: usize) {
     if count == 0 {
         return;
     }
-    let left = layout.recent.origin.x + 96.0;
-    let available = (layout.new_canvas.origin.x - 12.0 - left).max(0.0);
-    let width = ((available - (count - 1) as f32 * 10.0) / count as f32).clamp(0.0, 260.0);
+    let (_, content) = row_rects(layout, locale);
+    let width = ((content.size.x - (count - 1) as f32 * 10.0) / count as f32)
+        .clamp(0.0, super::layout::RECENT_CHIP_W);
     for (index, chip) in layout.recent_chips.iter_mut().take(count).enumerate() {
         *chip = Rect::xywh(
-            left + index as f32 * (width + 10.0),
-            layout.recent.origin.y + 9.0,
+            content.origin.x + index as f32 * (width + 10.0),
+            content.origin.y,
             width,
-            32.0,
+            content.size.y,
         );
     }
 }

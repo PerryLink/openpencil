@@ -634,12 +634,7 @@ pub(crate) fn wide_layout_for_scrolled(
         new_canvas_w,
         32.0,
     );
-    let mut recent_chips = [Rect::ZERO; 5];
-    let mut chip_x = recent.origin.x + 96.0;
-    for chip in recent_chips.iter_mut() {
-        *chip = Rect::xywh(chip_x, recent.origin.y + 9.0, RECENT_CHIP_W, 32.0);
-        chip_x += RECENT_CHIP_W + 10.0;
-    }
+    let recent_chips = [Rect::ZERO; 5];
 
     let (connect_card, connect_rows) = connect_card_rects(composer);
 
@@ -690,7 +685,7 @@ pub(crate) fn wide_layout_for_scrolled(
         bottom_nav: Rect::ZERO,
         nav_items: [Rect::ZERO; 3],
     };
-    super::recent_names::adapt_layout(&mut layout, 5);
+    super::recent_names::adapt_layout(&mut layout, 5, locale);
     layout
 }
 

@@ -271,7 +271,7 @@ fn home_routes_the_signed_in_account_menu_as_well_as_the_sign_in_modal() {
     assert!(host.open_account_entry());
     assert!(host.editor_state().editor_ui.login_modal_open);
     assert_eq!(
-        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0),
+        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0, true),
         Some(true),
         "the modal owns presses over the takeover"
     );
@@ -280,7 +280,7 @@ fn home_routes_the_signed_in_account_menu_as_well_as_the_sign_in_modal() {
     host.editor_state_mut().editor_ui.login_modal_open = false;
     host.editor_state_mut().editor_ui.account_menu_open = true;
     assert_eq!(
-        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0),
+        host.press_home_overlays(400.0, 400.0, 1440.0, 900.0, true),
         Some(true),
         "an open account menu must not let presses fall through Home"
     );

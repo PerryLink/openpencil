@@ -20,9 +20,81 @@ fn open_panel_with_models(count: usize) -> EditorState {
     state
 }
 
+#[test]
+fn tiny_picker_never_exposes_footer_or_clear_actions_outside_its_card() {
+    let card = Rect::xywh(8.0, 8.0, 300.0, 24.0);
+    assert!(!footer_action_hit(card, Point2D::new(30.0, 0.0)));
+    assert!(!footer_action_hit(card, Point2D::new(30.0, 20.0)));
+    assert!(!search_clear_hit(card, Point2D::new(280.0, 40.0), "q"));
+}
+
+#[test]
+fn keyboard_constrained_picker_paint_and_hit_clamp_stale_scroll_identically() {
+    let editor = open_panel_with_models(24);
+    let models = &editor.chat.available_models;
+    let rect = fit_picker_to_bounds(
+        Rect::xywh(8.0, -80.0, 300.0, 288.0),
+        Rect::xywh(8.0, 8.0, 304.0, 252.0),
+    );
+    assert_eq!(rect, Rect::xywh(8.0, 8.0, 300.0, 252.0));
+    let max = max_picker_scroll_in_rect(models, "", rect);
+    assert!(max > max_picker_scroll(models, ""));
+    let mut picker = SelectState {
+        open: true,
+        ..Default::default()
+    };
+    picker.scroll.offset = max;
+    let mut bounded = RoundFillBackend::default();
+    paint_model_picker(
+        &mut PaintCx {
+            backend: &mut bounded,
+        },
+        &Theme::dark(),
+        rect,
+        models,
+        23,
+        &picker,
+        &TextInputState::default(),
+        0,
+        op_editor_core::Locale::EnUs,
+    );
+    picker.scroll.offset = max + 900.0;
+    let mut stale = RoundFillBackend::default();
+    paint_model_picker(
+        &mut PaintCx {
+            backend: &mut stale,
+        },
+        &Theme::dark(),
+        rect,
+        models,
+        23,
+        &picker,
+        &TextInputState::default(),
+        0,
+        op_editor_core::Locale::EnUs,
+    );
+    assert_eq!(bounded.fills, stale.fills);
+    assert_eq!(bounded.translations, vec![Point2D::new(0.0, -max)]);
+    assert_eq!(bounded.translations, stale.translations);
+    assert_eq!(
+        model_picker_hit(
+            &picker,
+            rect,
+            Point2D::new(
+                rect.origin.x + 40.0,
+                rect.origin.y + rect.size.y - MODEL_FOOTER_H - 16.0
+            ),
+            models,
+            "",
+        ),
+        SelectHit::Row(23),
+    );
+}
+
 #[derive(Default)]
 struct RoundFillBackend {
     fills: Vec<(Rect, f32, Color)>,
+    translations: Vec<Point2D>,
 }
 
 impl RenderBackend for RoundFillBackend {
@@ -40,7 +112,9 @@ impl RenderBackend for RoundFillBackend {
     fn stroke_svg_path(&mut self, _: &str, _: Point2D, _: f32, _: Color, _: f32) {}
     fn save(&mut self) {}
     fn restore(&mut self) {}
-    fn translate(&mut self, _: Point2D) {}
+    fn translate(&mut self, delta: Point2D) {
+        self.translations.push(delta);
+    }
     fn resize(&mut self, _: u32, _: u32) {}
     fn dpi_scale(&self) -> f32 {
         1.0

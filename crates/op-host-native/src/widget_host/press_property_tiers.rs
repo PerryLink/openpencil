@@ -150,6 +150,7 @@ impl WidgetHostNative {
     pub(in crate::widget_host) fn press_panel_dispatch_tiers(
         &mut self,
         ctx: &PressCtx,
+        allow_touch_panel_defer: bool,
     ) -> Option<bool> {
         let (x, y) = (ctx.x, ctx.y);
         let viewport_width = ctx.viewport_width;
@@ -159,6 +160,12 @@ impl WidgetHostNative {
         // and can extend beyond the chat rect. Route its actual visible bounds
         // before Variables/Property/Layer dispatch, while leaving the Git and
         // property popovers painted above it in control of their overlap.
+        if !in_git_panel
+            && allow_touch_panel_defer
+            && self.begin_model_picker_touch_gesture(x, y, viewport_width, viewport_height)
+        {
+            return Some(true);
+        }
         if !in_git_panel
             && self.apply_chat_model_picker_overlay_press(x, y, viewport_width, viewport_height)
         {

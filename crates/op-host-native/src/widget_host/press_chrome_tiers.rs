@@ -21,6 +21,7 @@ impl WidgetHostNative {
     pub(in crate::widget_host) fn press_rail_overlay_tiers(
         &mut self,
         ctx: &PressCtx,
+        allow_touch_panel_defer: bool,
     ) -> Option<bool> {
         let (x, y) = (ctx.x, ctx.y);
         let viewport_width = ctx.viewport_width;
@@ -94,6 +95,13 @@ impl WidgetHostNative {
         // upward model dropdown across the bar, so its visible overlap must be
         // routed before the lower TopBar surface. Other dropdowns/modals above
         // chat already had first refusal in the blocks above.
+        if y < TOP_BAR_HEIGHT
+            && !in_git_panel
+            && allow_touch_panel_defer
+            && self.begin_model_picker_touch_gesture(x, y, viewport_width, viewport_height)
+        {
+            return Some(true);
+        }
         if y < TOP_BAR_HEIGHT
             && !in_git_panel
             && self.apply_chat_model_picker_overlay_press(x, y, viewport_width, viewport_height)
@@ -485,6 +493,11 @@ impl WidgetHostNative {
         let kind = self.editor_state.editor_ui.mobile_sheet?;
         let panel = self.mobile_sheet_rect(ctx.viewport_width, ctx.viewport_height, kind);
         let point = Point2D::new(ctx.x, ctx.y);
+        // The picker is painted above its AI surface, including any portion
+        // outside the sheet. Its tap must never dismiss the sheet underneath.
+        if kind == op_editor_core::size_class::MobileSheetKind::Ai && ctx.in_chat_model_picker {
+            return None;
+        }
 
         if kind == op_editor_core::size_class::MobileSheetKind::Ai
             && !self.editor_state.editor_ui.compact_layout()

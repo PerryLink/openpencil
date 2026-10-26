@@ -213,7 +213,13 @@ impl WidgetHostNative {
         // overlays Home itself opens (agent settings, sign-in modal, the
         // Home-anchored model picker) paint ABOVE the takeover, so their
         // presses must arrive first.
-        if let Some(consumed) = self.press_home_overlays(x, y, viewport_width, viewport_height) {
+        if let Some(consumed) = self.press_home_overlays(
+            x,
+            y,
+            viewport_width,
+            viewport_height,
+            allow_touch_panel_defer,
+        ) {
             return consumed;
         }
         // Touch + compact Home defers its taps to release so a one-finger
@@ -340,7 +346,7 @@ impl WidgetHostNative {
         }
         // Tier 3 — image-fill popover, StatusBar, resize gutter, and the
         // model-picker slice that lifts above the TopBar.
-        if let Some(consumed) = self.press_rail_overlay_tiers(&ctx) {
+        if let Some(consumed) = self.press_rail_overlay_tiers(&ctx, allow_touch_panel_defer) {
             return consumed;
         }
         // Tier 3b — an open touch surface owns its outside scrim and close
@@ -389,7 +395,7 @@ impl WidgetHostNative {
             return consumed;
         }
         // Tier 7 — model picker, theme presets, VariablesPanel.
-        if let Some(consumed) = self.press_panel_dispatch_tiers(&ctx) {
+        if let Some(consumed) = self.press_panel_dispatch_tiers(&ctx, allow_touch_panel_defer) {
             return consumed;
         }
         // Tier 8 — PropertyPanel input row.

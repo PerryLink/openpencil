@@ -556,9 +556,14 @@ impl<'a> AIChatPlaceholder<'a> {
             + self.input_area_height_for_rect(rect)
             + self.attachment_row_h();
         let bottom = toolbar_top - 4.0;
-        Rect {
+        let card = Rect {
             origin: Point2D::new(rect.origin.x + PAD, bottom - height),
             size: Point2D::new(rect.size.x - PAD * 2.0, height),
+        };
+        if self.touch_sheet {
+            crate::widgets::ai_chat_model_picker::fit_picker_to_bounds(card, rect)
+        } else {
+            card
         }
     }
 
