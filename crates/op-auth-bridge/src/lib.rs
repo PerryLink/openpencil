@@ -112,7 +112,7 @@ pub use status::AuthStatus;
 pub const REQUIRED_ABI_VERSION: u32 = 1;
 
 /// Newest supported base authentication ABI.
-pub const MAX_SUPPORTED_ABI_VERSION: u32 = 3;
+pub const MAX_SUPPORTED_ABI_VERSION: u32 = 4;
 
 /// Optional ABI revision that adds the collaboration-ticket capability.
 ///
@@ -131,7 +131,8 @@ pub const COLLAB_TICKET_ABI_VERSION: u32 = 2;
 /// The private `op-auth-ffi` `ABI_VERSION` must move in step.
 pub const COLLAB_RELAY_TOKEN_ABI_VERSION: u32 = 3;
 
-/// Development-only ABI revision with ephemeral Hosted access and session epochs.
+/// Optional ABI revision with ephemeral Hosted access and session epochs.
+/// Production use requires an explicitly adopted, signed ABI-v4 release matrix.
 pub const HOSTED_ACCESS_ABI_VERSION: u32 = 4;
 
 /// `poll` handle that reports the signed-in session instead of a flow.
@@ -466,12 +467,13 @@ mod abi_tests {
     use super::*;
 
     #[test]
-    fn base_account_api_accepts_v1_through_v3_only() {
+    fn base_account_api_accepts_v1_through_v4_only() {
         assert!(!supports_base_abi(0));
         assert!(supports_base_abi(1));
         assert!(supports_base_abi(2));
         assert!(supports_base_abi(3));
-        assert!(!supports_base_abi(4));
+        assert!(supports_base_abi(4));
+        assert!(!supports_base_abi(5));
     }
 
     #[test]
@@ -501,7 +503,7 @@ mod abi_tests {
     #[test]
     fn relay_token_capability_is_negotiated_above_the_ticket_capability() {
         const { assert!(COLLAB_RELAY_TOKEN_ABI_VERSION > COLLAB_TICKET_ABI_VERSION) };
-        assert_eq!(COLLAB_RELAY_TOKEN_ABI_VERSION, MAX_SUPPORTED_ABI_VERSION);
+        assert_eq!(HOSTED_ACCESS_ABI_VERSION, MAX_SUPPORTED_ABI_VERSION);
         assert!(supports_base_abi(COLLAB_RELAY_TOKEN_ABI_VERSION));
     }
 

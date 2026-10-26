@@ -1,7 +1,7 @@
 //! Validation shared by the build script and provenance regression tests.
 //!
 //! Committed production archives fail closed unless source policy adopts their
-//! complete ABI-v3 release matrix and their exact bytes and hardening declaration
+//! complete ABI-v3/v4 release matrix and their exact bytes and hardening declaration
 //! are covered by Ed25519 signatures rooted in the repository release key.
 
 use std::collections::BTreeMap;
@@ -47,6 +47,7 @@ pub struct ValidatedPrebuilt {
 pub struct ProvenanceError(&'static str);
 
 struct AdoptionPolicy {
+    abi_version: u32,
     public_key: String,
     release_manifest_sha256: String,
     source_revision: String,
@@ -61,6 +62,7 @@ struct ReleaseTargetRow {
 }
 
 struct ReleaseManifest {
+    abi_version: u32,
     version: String,
     source_revision: String,
     build_id: String,
@@ -98,9 +100,9 @@ pub fn validate_prebuilt(
 
     let policy = read_adoption_policy(policy_path)?;
     let abi_version = read_optional_abi(&target_dir.join("ABI_VERSION"))?;
-    if abi_version != 3 {
+    if abi_version != policy.abi_version {
         return Err(ProvenanceError(
-            "source policy requires production op-auth ABI 3",
+            "production op-auth ABI does not match source policy",
         ));
     }
     let public_key_hex = read_trimmed(
@@ -132,7 +134,8 @@ pub fn validate_prebuilt(
         "signed release matrix signature is invalid",
     )?;
     let release_manifest = parse_release_manifest(&release_manifest_bytes, target)?;
-    if release_manifest.source_revision != policy.source_revision
+    if release_manifest.abi_version != policy.abi_version
+        || release_manifest.source_revision != policy.source_revision
         || release_manifest.build_id != policy.build_id
     {
         return Err(ProvenanceError(
@@ -185,7 +188,7 @@ pub fn validate_prebuilt(
     require_field(
         &manifest,
         "build_id",
-        &format!("{}.a3.{hardening_digest}", policy.build_id),
+        &format!("{}.a{abi_version}.{hardening_digest}", policy.build_id),
     )?;
     let signature_hex = read_trimmed(
         &target_dir.join("PROVENANCE.sig"),
@@ -211,7 +214,7 @@ fn read_optional_abi(path: &Path) -> Result<u32, ProvenanceError> {
     }
     let value = read_trimmed(path, "ABI_VERSION is unreadable")?;
     match value.parse::<u32>() {
-        Ok(version @ 1..=3) => Ok(version),
+        Ok(version @ 1..=4) => Ok(version),
         _ => Err(ProvenanceError("ABI_VERSION is unsupported")),
     }
 }
@@ -228,7 +231,10 @@ fn read_adoption_policy(path: &Path) -> Result<AdoptionPolicy, ProvenanceError> 
         return Err(ProvenanceError("auth release adoption policy is malformed"));
     }
     let lines: Vec<_> = text.lines().collect();
-    if lines.len() != 6 || lines[0] != "format=op-auth-release-policy-v1" || lines[1] != "abi=3" {
+    if lines.len() != 6
+        || lines[0] != "format=op-auth-release-policy-v1"
+        || !matches!(lines[1], "abi=3" | "abi=4")
+    {
         return Err(ProvenanceError("auth release adoption policy is malformed"));
     }
     let public_key = exact_value(lines[2], "public_key=")?;
@@ -243,6 +249,7 @@ fn read_adoption_policy(path: &Path) -> Result<AdoptionPolicy, ProvenanceError> 
         return Err(ProvenanceError("auth release adoption policy is malformed"));
     }
     Ok(AdoptionPolicy {
+        abi_version: if lines[1] == "abi=4" { 4 } else { 3 },
         public_key: public_key.to_owned(),
         release_manifest_sha256: release_manifest_sha256.to_owned(),
         source_revision: source_revision.to_owned(),
@@ -262,7 +269,7 @@ fn parse_release_manifest(
     let lines: Vec<_> = text.lines().collect();
     if lines.len() != 17
         || lines[0] != "format=op-auth-release-matrix-v1"
-        || lines[2] != "abi=3"
+        || !matches!(lines[2], "abi=3" | "abi=4")
         || lines[6] != "target_count=10"
     {
         return Err(ProvenanceError("signed release matrix is malformed"));
@@ -290,6 +297,7 @@ fn parse_release_manifest(
         "selected target is absent from signed release matrix",
     ))?;
     Ok(ReleaseManifest {
+        abi_version: if lines[2] == "abi=4" { 4 } else { 3 },
         version: version.to_owned(),
         source_revision: source_revision.to_owned(),
         build_id: build_id.to_owned(),

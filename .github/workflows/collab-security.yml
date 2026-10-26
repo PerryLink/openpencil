@@ -41,6 +41,10 @@ on:
       - 'tools/check-collab-deployment-boundaries.sh'
       - 'tools/check-op-auth-prebuilt.sh'
       - 'tools/check-op-auth-prebuilt.test.sh'
+      - 'tools/check-op-auth-release-matrix*'
+      - 'tools/check-op-auth-cargo-build*'
+      - 'tools/check-mobile-auth-link-input*'
+      - 'scripts/build-mobile-auth-dev*'
       - 'tools/package-op-auth-prebuilt.sh'
       - '.github/workflows/collab-security.yml'
       - '.github/workflows/collab-platform-acceptance.yml'
@@ -85,6 +89,10 @@ on:
       - 'tools/check-collab-deployment-boundaries.sh'
       - 'tools/check-op-auth-prebuilt.sh'
       - 'tools/check-op-auth-prebuilt.test.sh'
+      - 'tools/check-op-auth-release-matrix*'
+      - 'tools/check-op-auth-cargo-build*'
+      - 'tools/check-mobile-auth-link-input*'
+      - 'scripts/build-mobile-auth-dev*'
       - 'tools/package-op-auth-prebuilt.sh'
       - '.github/workflows/collab-security.yml'
       - '.github/workflows/collab-platform-acceptance.yml'
@@ -125,6 +133,11 @@ jobs:
         run: |
           bash tools/check-collab-security-boundaries.test.sh
           bash tools/check-op-auth-prebuilt.test.sh
+          bash tools/check-op-auth-release-matrix.test.sh
+          OP_AUTH_TEST_ABI=4 bash tools/check-op-auth-release-matrix.test.sh
+          bash tools/check-op-auth-cargo-build.test.sh
+          bash tools/check-mobile-auth-link-input.test.sh
+          bash scripts/build-mobile-auth-dev.test.sh
 
       - name: Verify public/private and secret boundaries
         run: |

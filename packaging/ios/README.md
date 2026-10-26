@@ -37,6 +37,14 @@ scripts/build-mobile-auth-dev.sh \
   --abi 3
 ```
 
+For Hosted model access, use an ABI-v4 archive for the same mobile target and
+pass `--abi 4`. The script selects `mobile-hosted-dev`, which forwards the
+additional debug-only `op-auth-bridge/dev-hosted` capability. ABI-v3 retains
+login/collaboration support but cannot use Hosted plans. The production matrix
+is still ABI-v3; shipping Hosted requires a newly signed complete ABI-v4 matrix
+and reviewed `AUTH-RELEASE-POLICY` adoption. The consumer verifies that matrix
+without requiring any development feature; unsigned archives remain Debug-only.
+
 Then pass that exact archive to Xcode as `OP_AUTH_ARCHIVE` and repeat the ABI
 with `OPENPENCIL_DEV_OP_AUTH_ABI_VERSION`. The project pre-build gate accepts
 an unsigned archive only for `CONFIGURATION=Debug`. Release linking accepts

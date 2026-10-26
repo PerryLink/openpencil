@@ -75,7 +75,11 @@ impl Fixture {
     }
 
     fn make_signed_abi_v3(&self) {
-        fs::write(self.target_dir.join("ABI_VERSION"), "3\n").unwrap();
+        self.make_signed_abi(3);
+    }
+
+    fn make_signed_abi(&self, abi: u32) {
+        fs::write(self.target_dir.join("ABI_VERSION"), format!("{abi}\n")).unwrap();
         fs::write(
             self.target_dir.join("HARDENING-ATTESTATION"),
             format!("target={TARGET}\nartifact={ARTIFACT}\nsource_revision={SOURCE_REVISION}\n"),
@@ -91,11 +95,11 @@ impl Fixture {
              target={TARGET}\n\
              artifact={ARTIFACT}\n\
              version={VERSION}\n\
-             abi=3\n\
+             abi={abi}\n\
              sha256={}\n\
              hardening={HARDENING_PROFILE_V1}\n\
              source_revision={SOURCE_REVISION}\n\
-             build_id=private-ci-42.a3.{hardening_sha}\n",
+             build_id=private-ci-42.a{abi}.{hardening_sha}\n",
             sha256.trim(),
         );
         let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
@@ -115,7 +119,7 @@ impl Fixture {
         let mut release_manifest = format!(
             "format=op-auth-release-matrix-v1\n\
              version={VERSION}\n\
-             abi=3\n\
+             abi={abi}\n\
              source_revision={SOURCE_REVISION}\n\
              openpencil_revision=89abcdef0123456789abcdef0123456789abcdef\n\
              build_id=private-ci-42\n\
@@ -154,7 +158,7 @@ impl Fixture {
             &self.policy_path,
             format!(
                 "format=op-auth-release-policy-v1\n\
-                 abi=3\n\
+                 abi={abi}\n\
                  public_key={}\n\
                  release_manifest_sha256={:x}\n\
                  source_revision={SOURCE_REVISION}\n\
@@ -195,7 +199,7 @@ fn rejects_a_committed_abi_v1_downgrade() {
     fs::write(fixture.target_dir.join("ABI_VERSION"), "1\n").unwrap();
     assert_eq!(
         fixture.validate().unwrap_err(),
-        "source policy requires production op-auth ABI 3"
+        "production op-auth ABI does not match source policy"
     );
 }
 
@@ -225,7 +229,7 @@ fn rejects_a_committed_abi_v2_downgrade() {
     fs::write(fixture.target_dir.join("ABI_VERSION"), "2\n").unwrap();
     assert_eq!(
         fixture.validate().unwrap_err(),
-        "source policy requires production op-auth ABI 3"
+        "production op-auth ABI does not match source policy"
     );
 }
 
@@ -368,4 +372,35 @@ fn validates_every_committed_target_archive() {
         validated_targets > 0,
         "the committed prebuilt matrix must not be empty"
     );
+}
+
+#[test]
+fn adopted_signed_hosted_abi4_validates() {
+    let fixture = Fixture::new();
+    fixture.make_signed_abi(4);
+    let validated = fixture.validate().unwrap();
+    assert_eq!(validated.abi_version, 4);
+    assert!(validated.signed_provenance);
+}
+
+#[test]
+fn signed_hosted_abi4_requires_explicit_source_adoption() {
+    let fixture = Fixture::new();
+    fixture.make_signed_abi(4);
+    let policy = fs::read_to_string(&fixture.policy_path)
+        .unwrap()
+        .replace("abi=4", "abi=3");
+    fs::write(&fixture.policy_path, policy).unwrap();
+    assert_eq!(
+        fixture.validate().unwrap_err(),
+        "production op-auth ABI does not match source policy"
+    );
+}
+
+#[test]
+fn signed_hosted_abi4_rejects_unsigned_metadata_change() {
+    let fixture = Fixture::new();
+    fixture.make_signed_abi(4);
+    fs::write(fixture.target_dir.join("ABI_VERSION"), "3\n").unwrap();
+    assert!(fixture.validate().is_err());
 }

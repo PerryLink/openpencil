@@ -21,7 +21,7 @@ test-issuer = []
 # and ABI version, and rejects this feature outside Cargo's debug profile.
 dev-prebuilt = []
 # Additional explicit opt-in for the ABI-v4 Hosted capability, debug only.
-# Production signed artifacts continue to use the ABI-v3 release policy.
+# Signed ABI-v4 artifacts need no development feature; source policy adopts them.
 dev-hosted = ["dev-prebuilt"]
 # Compatibility alias for existing desktop development commands. New mobile
 # integrations use `dev-prebuilt` through their `mobile-auth-dev` feature.

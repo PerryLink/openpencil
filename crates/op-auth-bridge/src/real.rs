@@ -45,17 +45,11 @@ pub(crate) fn available() -> bool {
 }
 
 fn supports_linked_abi(version: u32) -> bool {
-    // An explicit developer declaration must match the actual linked archive.
-    // The production base-ABI range and signed artifact policy remain unchanged.
-    #[cfg(op_auth_development_prebuilt)]
+    // Both signed and development archives must match their validated declaration.
     if option_env!("OP_AUTH_PREBUILT_ABI_VERSION").and_then(|declared| declared.parse::<u32>().ok())
         != Some(version)
     {
         return false;
-    }
-    #[cfg(all(op_auth_development_prebuilt, op_auth_hosted_access_prebuilt))]
-    if version == crate::HOSTED_ACCESS_ABI_VERSION {
-        return true;
     }
     supports_base_abi(version)
 }
@@ -176,19 +170,9 @@ mod tests {
     fn runtime_abi_handshake_rejects_unknown_and_misdeclared_archives() {
         assert!(!supports_linked_abi(0));
         assert!(!supports_linked_abi(5));
-        #[cfg(op_auth_development_prebuilt)]
-        {
-            let declared = env!("OP_AUTH_PREBUILT_ABI_VERSION").parse::<u32>().unwrap();
-            for version in 1..=4 {
-                assert_eq!(supports_linked_abi(version), version == declared);
-            }
-        }
-        #[cfg(not(op_auth_development_prebuilt))]
-        {
-            for version in 1..=3 {
-                assert!(supports_linked_abi(version));
-            }
-            assert!(!supports_linked_abi(4));
+        let declared = env!("OP_AUTH_PREBUILT_ABI_VERSION").parse::<u32>().unwrap();
+        for version in 1..=4 {
+            assert_eq!(supports_linked_abi(version), version == declared);
         }
     }
 }

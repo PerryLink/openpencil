@@ -31,7 +31,7 @@ The reusable artifacts remain independently inspectable:
 - Their bytes are pinned by the adjacent `SHA256` and signed `PROVENANCE`.
 - Their target, artifact release version, ABI, private revision, build id, and
   hardening declaration are covered by the repository release public key.
-- Their exposed `op_auth_*` names match the ABI-v3 allowlist.
+- Their exposed `op_auth_*` names match the validated ABI allowlist.
 - Mach-O and ELF use the hardened profile. A signed Windows pass-through may
   declare the lower `op-auth-signed-unobfuscated-v1` anti-reversing profile.
 
@@ -50,7 +50,7 @@ host toolchain's own personality routine. The transformation happens only
 after provenance validation, preserves archive layout, and rejects ambiguous
 input; it never weakens the linker's duplicate-symbol checks.
 
-Every production matrix is an atomic, complete ten-target ABI-v3 set:
+Every production matrix is an atomic, complete ten-target set (ABI v3 or v4):
 
 ```text
 aarch64-apple-darwin       aarch64-apple-ios
@@ -64,7 +64,7 @@ The signed release manifest binds all ten targets to the same artifact release
 version, recorded public build context, private source revision, and immutable
 build id. Release and TestFlight verify the complete matrix in the source they
 build. They fail closed on a missing target, invalid signature, mismatched
-digest, ABI other than 3, inconsistent metadata, or unrecognized hardening
+digest, ABI different from the source adoption lock, inconsistent metadata, or unrecognized hardening
 profile. Unsigned local mobile archives belong only in the explicit Debug
 override and must never be copied into this directory.
 
@@ -73,7 +73,7 @@ override and must never be copied into this directory.
 Every production target directory must contain:
 
 ```text
-ABI_VERSION       exactly 3 for production
+ABI_VERSION       exactly the adopted production ABI (3 or 4)
 VERSION           private artifact release identifier
 SHA256            lowercase digest of the archive
 PROVENANCE        signed key/value manifest
@@ -90,7 +90,10 @@ over the exact
 archive digest, hardening profile, source revision, or build id.
 
 ABI v3 appends relay-token minting to the ABI-v2 login and collaboration-ticket
-surface. The build bridge gates each appended symbol set by the validated ABI.
+surface. ABI v4 appends Hosted access begin/poll/cancel and session epochs. The
+build bridge gates each appended symbol set by the validated ABI. The currently
+committed matrix and adoption lock remain ABI v3; enabling consumer support for
+v4 does not constitute a signed release or authorize changing those pins.
 
 ## Private rebuild profile
 

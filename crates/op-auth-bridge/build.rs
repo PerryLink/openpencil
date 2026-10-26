@@ -90,7 +90,10 @@ fn main() {
         println!("cargo:rustc-cfg=op_auth_collab_relay_token_prebuilt");
     }
     if abi_version == 4 {
-        assert!(development_override, "Hosted ABI-v4 is development-only");
+        assert!(
+            development_override || signed_provenance,
+            "Hosted ABI-v4 requires signed provenance or the explicit debug override"
+        );
         println!("cargo:rustc-cfg=op_auth_hosted_access_prebuilt");
     }
     println!("cargo:rustc-env=OP_AUTH_PREBUILT_ABI_VERSION={abi_version}");

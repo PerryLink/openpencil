@@ -180,6 +180,28 @@ new_fixture signed-abi-v2
 make_signed_abi_v2
 expect_pass "accepts valid Ed25519-signed ABI-v2 provenance" --require-hardened
 
+new_fixture signed-abi-v4
+make_signed_abi_v2
+printf '%s\n' \
+    op_auth_collab_relay_token_begin \
+    op_auth_hosted_access_begin \
+    op_auth_hosted_access_cancel \
+    op_auth_hosted_access_poll \
+    op_auth_hosted_session_epoch >> "$artifact"
+printf '4\n' > "$target_dir/ABI_VERSION"
+write_sha256 "$artifact" "$target_dir/SHA256"
+artifact_sha=$(tr -d '[:space:]' < "$target_dir/SHA256")
+sed -e 's/^abi=2$/abi=4/' -e "s/^sha256=.*/sha256=$artifact_sha/" \
+    "$target_dir/PROVENANCE" > "$target_dir/PROVENANCE.next"
+mv "$target_dir/PROVENANCE.next" "$target_dir/PROVENANCE"
+sign_provenance "$signing_key" "$target_dir/PROVENANCE.sig"
+expect_pass "accepts signed ABI-v4 with all Hosted symbols" --require-hardened
+sed '/^op_auth_hosted_session_epoch$/d' "$artifact" > "$artifact.next"
+mv "$artifact.next" "$artifact"
+write_sha256 "$artifact" "$target_dir/SHA256"
+expect_failure "rejects ABI-v4 without the Hosted session epoch" \
+    "required C ABI symbols are missing" --require-hardened
+
 new_fixture forged-signature
 make_signed_abi_v2
 attacker_key=$fixture_root/attacker.pem

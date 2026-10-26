@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prove that a just-finished Cargo release build selected the signed ABI 3
+# Prove that a just-finished Cargo release build selected the signed ABI adopted by source policy
 # op-auth path instead of silently compiling the open-source stub.
 
 set -euo pipefail
@@ -32,6 +32,13 @@ case "$target_dir" in
     /* | [A-Za-z]:[\\/]*) ;;
     *) target_dir=$repo_root/$target_dir ;;
 esac
+policy=$repo_root/crates/op-auth-bridge/AUTH-RELEASE-POLICY
+abi_line=$(sed -n '2p' "$policy")
+[[ "$abi_line" == abi=3 || "$abi_line" == abi=4 ]] || {
+    printf 'error: unsupported auth release adoption ABI\n' >&2
+    exit 1
+}
+abi=${abi_line#abi=}
 build_root=$target_dir/$target/$profile/build
 [[ -d "$build_root" && ! -L "$build_root" ]] || {
     printf 'error: Cargo build-script output directory is missing for %s\n' "$target" >&2
@@ -53,18 +60,22 @@ for output in "${outputs[@]}"; do
         cargo:rustc-cfg=op_auth_prebuilt \
         cargo:rustc-cfg=op_auth_collab_ticket_prebuilt \
         cargo:rustc-cfg=op_auth_collab_relay_token_prebuilt \
-        cargo:rustc-env=OP_AUTH_PREBUILT_ABI_VERSION=3; do
+        "cargo:rustc-env=OP_AUTH_PREBUILT_ABI_VERSION=$abi"; do
         grep -Fqx "$required" "$output" || {
-            printf 'error: Cargo silently omitted production ABI 3 auth for %s\n' \
-                "$target" >&2
+            printf 'error: Cargo silently omitted production ABI %s auth for %s\n' \
+                "$abi" "$target" >&2
             exit 1
         }
     done
+    if [[ "$abi" == 4 ]] && ! grep -Fqx 'cargo:rustc-cfg=op_auth_hosted_access_prebuilt' "$output"; then
+        printf 'error: Cargo omitted the adopted Hosted ABI 4 capability for %s\n' "$target" >&2
+        exit 1
+    fi
     if grep -Fqx 'cargo:rustc-cfg=op_auth_development_prebuilt' "$output"; then
         printf 'error: Cargo selected a development auth archive for %s\n' "$target" >&2
         exit 1
     fi
 done
 
-printf 'check-op-auth-cargo-build.sh: verified production ABI 3 cfg for %s.\n' \
-    "$target"
+printf 'check-op-auth-cargo-build.sh: verified production ABI %s cfg for %s.\n' \
+    "$abi" "$target"

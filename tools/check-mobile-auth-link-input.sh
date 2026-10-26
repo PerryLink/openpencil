@@ -25,10 +25,10 @@ archive=$(cd "$(dirname "$archive")" && pwd -P)/libop_auth.a
 
 if [[ "$configuration" == Debug ]]; then
     case "${OPENPENCIL_DEV_OP_AUTH_ABI_VERSION:-}" in
-        2|3) ;;
+        2|3|4) ;;
         *)
             printf '%s\n' \
-                'error: Debug auth linking requires OPENPENCIL_DEV_OP_AUTH_ABI_VERSION=2 or 3' \
+                'error: Debug auth linking requires OPENPENCIL_DEV_OP_AUTH_ABI_VERSION=2, 3, or 4' \
                 >&2
             exit 1
             ;;
@@ -75,8 +75,8 @@ if [[ ! "$artifact_version" \
 fi
 
 abi=$(tr -d '[:space:]' < "$target_dir/ABI_VERSION")
-[[ "$abi" == 3 ]] || {
-    printf 'error: Release auth archive must use signed ABI 3\n' >&2
+[[ "$abi" == 3 || "$abi" == 4 ]] || {
+    printf 'error: Release auth archive must use signed ABI 3 or 4\n' >&2
     exit 1
 }
 
@@ -146,5 +146,11 @@ openssl pkeyutl -verify -rawin -pubin \
         exit 1
     }
 
+# Final linking is a consumer operation, never the pre-adoption promotion lane.
+# A valid historical signature alone must not select an unadopted ABI or matrix.
+OP_AUTH_PREBUILT_ROOT="$prebuilt_root" \
+    OP_AUTH_RELEASE_WORKSPACE_VERSION= \
+    OP_AUTH_RELEASE_EXPECTED_OPENPENCIL_REVISION= \
+    bash "$repo_root/tools/check-op-auth-release-matrix.sh" >/dev/null
 OP_AUTH_PREBUILT_ROOT="$prebuilt_root" \
     bash "$repo_root/tools/check-op-auth-prebuilt.sh" --require-hardened >/dev/null

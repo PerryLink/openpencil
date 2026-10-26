@@ -90,12 +90,20 @@ which has no release mode and isolates Android output in the Debug source set.
 
 ## Local Hosted ABI-v4 development
 
-Hosted model access requires a separate opt-in and a private ABI-v4 archive:
+Unsigned local Hosted development requires a separate opt-in and a private ABI-v4 archive:
 
 ```sh
 OPENPENCIL_DEV_OP_AUTH_ARCHIVE=/absolute/path/to/libop_auth.a \
 OPENPENCIL_DEV_OP_AUTH_ABI_VERSION=4 \
 cargo build -p op-host-desktop --features dev-op-auth-hosted
+```
+
+Mobile Debug builds use the matching target archive and forward the same opt-in:
+
+```sh
+scripts/build-mobile-auth-dev.sh --platform ios-simulator \
+  --archive /absolute/path/to/aarch64-apple-ios-sim/libop_auth.a --abi 4
+# Android: --platform android-arm64 and an aarch64-linux-android archive.
 ```
 
 The bridge feature is `op-auth-bridge/dev-hosted`; the existing `dev-prebuilt`
@@ -107,8 +115,13 @@ override variables continues to use the signed production artifact.
 Hosted access is unavailable on ABI v1–v3; their login and collaboration APIs
 continue to work. ABI v4 adds independent begin/poll/cancel operations and a
 session epoch for short-lived, non-persistent Hosted credentials. The production
-release matrix and provenance policy remain ABI v3. This override does not
-authorize shipping an unsigned archive.
+release matrix and provenance policy currently remain ABI v3. Signed ABI v4 is
+supported without a development feature only after `AUTH-RELEASE-POLICY` adopts
+its ABI, exact complete matrix digest, private source revision, and build ID.
+Each target still requires valid provenance, byte hashes, and all four Hosted
+symbols. The runtime ABI handshake must match the validated archive declaration.
+This change does not produce or adopt a new signed private release, and the
+Debug override does not authorize shipping an unsigned archive.
 
 ## Regional login and collaboration trust
 
@@ -138,13 +151,22 @@ when both issuers produce the same logical `iss` and globally stable account
 must publish the same canonical envelope signed by the offline root pinned in
 this crate. Policy v2 binds every required region to a non-zero
 `recovery_epoch`; v1 envelopes fail closed. The verifier requires the exact
-issuer, a live seven-day-or-shorter window, at most 8 unique regions/24 keys,
-one active plus one next key per region, globally unique `kid` and public keys,
-and safe overlap metadata. Next keys are integrity-checked but cannot verify
+issuer, a live window of at most 90 days (7,776,000 seconds), at most 8 unique
+regions/24 keys, one active plus one next key per region, globally unique `kid`
+and public keys, and safe overlap metadata. Next keys are integrity-checked but cannot verify
 tickets before activation; expired overlap keys fail closed. A process rejects
 generation rollback and same-generation rewrites, including recovery-epoch
 rewrites. Neither tickets, the private provider, discovery, peers, nor a
 regional mirror can replace the offline root.
+
+The 90-day ceiling also accepts existing seven-day policies, without extending
+their signed expiry. `not_before_unix` remains inclusive with no future clock
+skew allowance, and `not_after_unix` remains exclusive. Previously shipped
+clients that cap the policy at seven days must be upgraded before a longer
+policy is published. Policy v2, the signing domain, pinned roots, generation
+floor, and recovery epochs are unchanged; existing signed fixtures remain
+byte-identical. This public Rust verifier is shared by desktop, the web daemon,
+and mobile collaboration and does not depend on the private auth archive ABI.
 
 When no compatible private artifact is present, the crate builds its public
 stub backend. Authentication availability then reports `false`, while the open

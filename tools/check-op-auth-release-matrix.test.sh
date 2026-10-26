@@ -13,6 +13,8 @@ version=9.8.7
 source_revision=1111111111111111111111111111111111111111
 openpencil_revision=2222222222222222222222222222222222222222
 build_id=matrix-test
+abi=${OP_AUTH_TEST_ABI:-3}
+[[ "$abi" == 3 || "$abi" == 4 ]] || exit 2
 
 cleanup() {
     rm -rf "$temp_root"
@@ -44,7 +46,7 @@ write_policy() {
     manifest_sha=$(sha256_file "$release_manifest")
     {
         printf 'format=op-auth-release-policy-v1\n'
-        printf 'abi=3\n'
+        printf 'abi=%s\n' "$abi"
         printf 'public_key=%s\n' "$public_key"
         printf 'release_manifest_sha256=%s\n' "$manifest_sha"
         printf 'source_revision=%s\n' "$source_revision"
@@ -99,7 +101,7 @@ for target in "${targets[@]}"; do
     printf 'signed fixture for %s\n' "$target" > "$target_dir/$artifact"
     artifact_sha=$(sha256_file "$target_dir/$artifact")
     printf '%s\n' "$version" > "$target_dir/VERSION"
-    printf '3\n' > "$target_dir/ABI_VERSION"
+    printf '%s\n' "$abi" > "$target_dir/ABI_VERSION"
     printf '%s\n' "$artifact_sha" > "$target_dir/SHA256"
     {
         printf 'format=2\n'
@@ -117,11 +119,11 @@ for target in "${targets[@]}"; do
         printf 'target=%s\n' "$target"
         printf 'artifact=%s\n' "$artifact"
         printf 'version=%s\n' "$version"
-        printf 'abi=3\n'
+        printf 'abi=%s\n' "$abi"
         printf 'sha256=%s\n' "$artifact_sha"
         printf 'hardening=op-auth-hardened-v1\n'
         printf 'source_revision=%s\n' "$source_revision"
-        printf 'build_id=%s.a3.%s\n' "$build_id" "$hardening_sha"
+        printf 'build_id=%s.a%s.%s\n' "$build_id" "$abi" "$hardening_sha"
     } > "$target_dir/PROVENANCE"
     sign_hex "$private_key" \
         "$target_dir/PROVENANCE" "$target_dir/PROVENANCE.sig"
@@ -134,7 +136,7 @@ done
 {
     printf 'format=op-auth-release-matrix-v1\n'
     printf 'version=%s\n' "$version"
-    printf 'abi=3\n'
+    printf 'abi=%s\n' "$abi"
     printf 'source_revision=%s\n' "$source_revision"
     printf 'openpencil_revision=%s\n' "$openpencil_revision"
     printf 'build_id=%s\n' "$build_id"
@@ -179,6 +181,21 @@ if OP_AUTH_PREBUILT_ROOT=$prebuilt \
     exit 1
 fi
 
+# Even a trusted signature and digest cannot select an ABI different from the
+# source adoption lock. Test both upgrade and downgrade substitution.
+other_abi=4
+[[ "$abi" == 4 ]] && other_abi=3
+policy_file=$fixture_repo/crates/op-auth-bridge/AUTH-RELEASE-POLICY
+sed "s/^abi=$abi$/abi=$other_abi/" "$policy_file" > "$policy_file.next"
+mv "$policy_file.next" "$policy_file"
+if OP_AUTH_PREBUILT_ROOT=$prebuilt \
+    "$fixture_repo/tools/check-op-auth-release-matrix.sh" >/dev/null 2>&1; then
+    printf 'error: matrix ABI different from source adoption was accepted\n' >&2
+    exit 1
+fi
+write_policy "$fixture_repo" \
+    "$trusted_prebuilt/PROVENANCE_PUBKEY" "$prebuilt/RELEASE-MANIFEST"
+
 # Strict promotion may validate a newly generated, self-consistent signed
 # matrix before the public source policy adopts its exact manifest digest.
 new_version=9.8.8
@@ -204,7 +221,7 @@ done
 {
     printf 'format=op-auth-release-matrix-v1\n'
     printf 'version=%s\n' "$new_version"
-    printf 'abi=3\n'
+    printf 'abi=%s\n' "$abi"
     printf 'source_revision=%s\n' "$source_revision"
     printf 'openpencil_revision=%s\n' "$openpencil_revision"
     printf 'build_id=%s\n' "$build_id"

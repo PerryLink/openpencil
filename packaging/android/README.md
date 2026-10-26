@@ -48,6 +48,17 @@ scripts/build-mobile-auth-dev.sh \
 cd packaging/android && ./gradlew installDebug && cd -
 ```
 
+For Hosted model access, use an ABI-v4 archive for the same mobile target and
+pass `--abi 4`. The script selects `mobile-hosted-dev`, which forwards the
+additional debug-only `op-auth-bridge/dev-hosted` capability. ABI-v3 retains
+login/collaboration support but cannot use Hosted plans. The production matrix
+is still ABI-v3; shipping Hosted requires a newly signed complete ABI-v4 matrix
+and reviewed `AUTH-RELEASE-POLICY` adoption. The consumer verifies that matrix
+without requiring any development feature; unsigned archives remain Debug-only.
+The Debug helper also derives QuickJS bindgen's sysroot from `ANDROID_NDK_HOME`
+(or `ANDROID_NDK_ROOT` / `ANDROID_NDK`) and uses API 26 for both Cargo NDK and
+bindgen, including older cargo-ndk installations without automatic bindgen setup.
+
 The bridge accepts that override only in Cargo's `debug` profile. The archive
 is linked into `libop_engine_jni.so`; it is never packaged as an Android asset
 or standalone `.a`. Both the archive and generated `.so` stay ignored by Git.
