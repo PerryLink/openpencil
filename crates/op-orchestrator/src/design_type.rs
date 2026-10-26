@@ -261,12 +261,38 @@ fn declares_screen_type(lower: &str) -> bool {
         || contains_any(lower, SLIDES_WORDS)
 }
 
+/// Clause boundaries: a card noun and a series word on either side of one
+/// belong to different parts of the brief.
+const CLAUSE_BREAKS: &[char] = &[
+    '，', '。', '；', '：', '、', '（', '）', '「', '」', '『', '』', '“', '”', '！', '？', ',',
+    '.', ';', ':', '(', ')', '"', '!', '?', '\n',
+];
+
+fn names_card_series(text: &str) -> bool {
+    contains_any(text, CARD_NOUNS) && contains_any(text, CARD_SERIES_WORDS)
+}
+
+/// The card noun and the series word inside ONE clause ("一套 6 张知识卡片",
+/// "卡片系列"). A brief that declares its screen lists its sections, and
+/// there the two words usually sit in different ones: the astra-new2 bicycle
+/// site's "「车型系列」三张产品卡" put 系列 in a section title and 卡 in that
+/// section's content, and the 1440 site came back as two 1080×1440 boards
+/// with everything below the first screen gone.
+fn names_card_series_in_one_clause(lower: &str) -> bool {
+    lower.split(CLAUSE_BREAKS).any(names_card_series)
+}
+
 fn is_card_series(lower: &str) -> bool {
     if contains_any(lower, CARD_DISQUALIFIER) {
         return false;
     }
-    // The strong card-noun + series-word combo always reads as a card set.
-    let strong = contains_any(lower, CARD_NOUNS) && contains_any(lower, CARD_SERIES_WORDS);
+    // The card-noun + series-word combo reads as a card set; once the brief
+    // names its screen, only within one clause.
+    let strong = if declares_screen_type(lower) {
+        names_card_series_in_one_clause(lower)
+    } else {
+        names_card_series(lower)
+    };
     if contains_any(lower, CARD_PLATFORM_WORDS) {
         // Platform words alone are downsized (motion50 fix 2): an explicit
         // screen declaration (mobile words / phone dimensions / dashboard /
@@ -686,6 +712,24 @@ mod tests {
             DesignType::Card
         );
         assert_eq!(detect_design_type("公众号图文").type_, DesignType::Card);
+    }
+
+    #[test]
+    fn a_site_section_of_product_cards_is_not_a_card_series() {
+        // astra-new2 w2: 系列 in a section title, 卡 in that section's content.
+        let bicycle = "公路自行车品牌官网首页（1440 宽，深海军蓝底与纯白区块交替）：顶部导航；「核心参数」一行四项；「车型系列」三张产品卡（AERO 7 竞速、ENDURO 5 耐力、GRAVEL X 砾石，各一张整车实拍照片）；「车主说」三条评价卡；页脚。";
+        assert_eq!(detect_design_type(bicycle).type_, DesignType::LandingPage);
+        let app = "茶饮 App 首页（375×812）：「新品系列」横滑三张商品卡、门店卡、底部导航。";
+        assert_eq!(detect_design_type(app).type_, DesignType::MobileScreen);
+        // A card set named in one clause is still a card set, screen word or not.
+        assert_eq!(
+            detect_design_type("做一套介绍 App 新功能的卡片").type_,
+            DesignType::Card
+        );
+        assert_eq!(
+            detect_design_type("官网上线宣传卡片系列，共 4 张").type_,
+            DesignType::Card
+        );
     }
 
     #[test]
