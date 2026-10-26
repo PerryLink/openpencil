@@ -130,7 +130,7 @@ policy_manifest_sha=${policy_manifest_sha_line#release_manifest_sha256=}
 policy_source_revision=${policy_source_revision_line#source_revision=}
 policy_build_id=${policy_build_id_line#build_id=}
 [[ "$policy_format" == 'format=op-auth-release-policy-v1' \
-    && "$policy_abi" == 'abi=3' \
+    && ( "$policy_abi" == 'abi=3' || "$policy_abi" == 'abi=4' ) \
     && "$policy_public_key_line" == "public_key=$policy_public_key" \
     && "$policy_public_key" =~ ^[0-9a-f]{64}$ \
     && "$policy_manifest_sha_line" == "release_manifest_sha256=$policy_manifest_sha" \
@@ -185,10 +185,15 @@ if [[ -n "$expected_version" && "$matrix_version" != "$expected_version" ]]; the
     printf 'error: op-auth release matrix version does not match the strict expected version\n' >&2
     exit 1
 fi
-[[ "$abi_line" == 'abi=3' ]] || {
-    printf 'error: op-auth release matrix must be ABI 3\n' >&2
+[[ "$abi_line" == 'abi=3' || "$abi_line" == 'abi=4' ]] || {
+    printf 'error: op-auth release matrix must be ABI 3 or 4\n' >&2
     exit 1
 }
+matrix_abi=${abi_line#abi=}
+if [[ "$strict_promotion" -eq 0 && "$abi_line" != "$policy_abi" ]]; then
+    printf 'error: release matrix ABI does not match source policy\n' >&2
+    exit 1
+fi
 [[ "$count_line" == 'target_count=10' ]] || {
     printf 'error: op-auth release matrix must contain all 10 targets\n' >&2
     exit 1
@@ -294,8 +299,8 @@ for target in "${targets[@]}"; do
         printf 'error: %s VERSION does not match the signed release matrix\n' "$target" >&2
         exit 1
     }
-    [[ "$(tr -d '[:space:]' < "$target_dir/ABI_VERSION")" == 3 ]] || {
-        printf 'error: %s must be ABI 3\n' "$target" >&2
+    [[ "$(tr -d '[:space:]' < "$target_dir/ABI_VERSION")" == "$matrix_abi" ]] || {
+        printf 'error: %s ABI must match the signed matrix\n' "$target" >&2
         exit 1
     }
     [[ "$(tr -d '[:space:]' < "$target_dir/SHA256")" == "$artifact_sha" \
@@ -317,10 +322,10 @@ for target in "${targets[@]}"; do
     require_exact_line "target=$target" "$provenance"
     require_exact_line "artifact=$artifact_name" "$provenance"
     require_exact_line "version=$matrix_version" "$provenance"
-    require_exact_line 'abi=3' "$provenance"
+    require_exact_line "abi=$matrix_abi" "$provenance"
     require_exact_line "sha256=$artifact_sha" "$provenance"
     require_exact_line "source_revision=$source_revision" "$provenance"
-    require_exact_line "build_id=$build_id.a3.$hardening_sha" "$provenance"
+    require_exact_line "build_id=$build_id.a$matrix_abi.$hardening_sha" "$provenance"
     if ! grep -Eq '^hardening=op-auth-(hardened-v1|signed-unobfuscated-v1)$' \
         "$provenance"; then
         printf 'error: %s provenance has no recognized hardening profile\n' "$target" >&2
@@ -335,5 +340,5 @@ for target in "${targets[@]}"; do
     index=$((index + 1))
 done
 
-printf 'check-op-auth-release-matrix.sh: verified signed ABI 3 matrix for %s (%s).\n' \
-    "$matrix_version" "$build_id"
+printf 'check-op-auth-release-matrix.sh: verified signed ABI %s matrix for %s (%s).\n' \
+    "$matrix_abi" "$matrix_version" "$build_id"

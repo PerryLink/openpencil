@@ -15,7 +15,7 @@ use crate::{
 pub const COLLAB_UNION_POLICY_VERSION: u32 = 2;
 pub const MAX_COLLAB_UNION_POLICY_REGIONS: usize = 8;
 pub const MAX_COLLAB_UNION_POLICY_KEYS: usize = 24;
-pub const MAX_COLLAB_UNION_POLICY_LIFETIME_SECONDS: i64 = 7 * 24 * 60 * 60;
+pub const MAX_COLLAB_UNION_POLICY_LIFETIME_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const COLLAB_UNION_POLICY_LEGACY_ROOT_X: &str = "5SVj-_jnJbuZlpDoD3M9x1eZAPDFLSq5jRb-c0xUh5A";
 pub const COLLAB_UNION_POLICY_CURRENT_ROOT_X: &str = "DQJfLM6RZhfcHW52PKmzKNrubWGl0g5p3mBSKNsVOus";
 /// Compatibility alias for the original generation 1-3 policy root.

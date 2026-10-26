@@ -627,3 +627,84 @@ fn accepts_the_maximum_eight_region_twenty_four_key_union() {
     });
     assert_eq!(parse_test_policy(value, NOW).unwrap().key_count(), 24);
 }
+
+// Sign independent window bounds so an over-limit policy still has a valid signature.
+fn signed_window(not_before: u64, not_after: u64) -> Vec<u8> {
+    let wire = serde_json::from_value(policy_fixture()).unwrap();
+    let mut unsigned = canonicalize(wire, ISSUER).unwrap().unsigned;
+    unsigned.not_before_unix = not_before.try_into().unwrap();
+    unsigned.not_after_unix = not_after.try_into().unwrap();
+    let mut message = POLICY_DOMAIN.to_vec();
+    message.extend_from_slice(&serde_json::to_vec(&unsigned).unwrap());
+    let mut value = serde_json::to_value(unsigned).unwrap();
+    value["signature"] =
+        json!(URL_SAFE_NO_PAD.encode(test_signing_key().sign(&message).to_bytes()));
+    serde_json::to_vec(&value).unwrap()
+}
+
+#[test]
+fn accepts_seven_and_ninety_day_policy_windows_but_rejects_one_second_more() {
+    const NINETY_DAYS: u64 = 7_776_000;
+    assert_eq!(MAX_COLLAB_UNION_POLICY_LIFETIME_SECONDS, NINETY_DAYS as i64);
+    for lifetime in [604_800, NINETY_DAYS] {
+        let body = signed_window(NOW, NOW + lifetime);
+        for now in [NOW, NOW + lifetime - 1] {
+            assert!(parse_test_body(&body, 64 * 1024, ISSUER, now).is_ok());
+        }
+        assert_eq!(
+            parse_test_body(&body, 64 * 1024, ISSUER, NOW + lifetime),
+            Err(CollabUnionPolicyError::Inactive)
+        );
+    }
+    assert_eq!(
+        parse_test_body(
+            &signed_window(NOW, NOW + NINETY_DAYS + 1),
+            64 * 1024,
+            ISSUER,
+            NOW
+        ),
+        Err(CollabUnionPolicyError::InvalidProfile)
+    );
+}
+
+#[test]
+fn policy_window_retains_strict_not_before_without_bootstrap_clock_skew() {
+    for future_seconds in [1, 300, 301] {
+        let body = signed_window(NOW + future_seconds, NOW + future_seconds + 7_776_000);
+        assert_eq!(
+            parse_test_body(&body, 64 * 1024, ISSUER, NOW),
+            Err(CollabUnionPolicyError::Inactive)
+        );
+        assert!(parse_test_body(&body, 64 * 1024, ISSUER, NOW + future_seconds).is_ok());
+    }
+}
+
+#[test]
+fn old_policy_expiry_and_generation_floor_survive_a_ninety_day_successor() {
+    let old_body = signed_window(NOW - 604_800, NOW);
+    let old = parse_test_body(&old_body, 64 * 1024, ISSUER, NOW - 1).unwrap();
+    assert_eq!(
+        old.ensure_active_at(NOW),
+        Err(CollabUnionPolicyError::Inactive)
+    );
+    assert_eq!(
+        parse_test_body(&old_body, 64 * 1024, ISSUER, NOW),
+        Err(CollabUnionPolicyError::Inactive)
+    );
+    for (generation, expected) in [
+        (6, Err(CollabUnionPolicyError::GenerationRollback)),
+        (7, Err(CollabUnionPolicyError::GenerationRewrite)),
+        (8, Ok(())),
+    ] {
+        let mut successor = policy_fixture();
+        successor["generation"] = json!(generation);
+        successor["not_before_unix"] = json!(NOW);
+        successor["not_after_unix"] = json!(NOW + 7_776_000);
+        assert_eq!(
+            parse_test_policy(successor, NOW)
+                .unwrap()
+                .ensure_successor_of(&old),
+            expected
+        );
+    }
+}

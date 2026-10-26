@@ -194,12 +194,51 @@ canonical_payload_json_bytes
 
 The domain separator prevents a valid signature for another collaboration
 artifact from being interpreted as a bootstrap signature. A payload has one
-non-zero generation and one validity window of at most seven days, and contains
-exactly one CN and one Global entry in the same signed snapshot. Each entry
+non-zero generation and one validity window of at most 90 days (7,776,000
+seconds), and contains exactly one CN and one Global entry in the same signed
+snapshot. Each entry
 atomically contains its exact relay WSS URL, locator HTTPS URL, locator
-Ed25519 public keys, and relay-challenge X25519 public keys. The desktop allows
-at most 300 seconds of future `not_before` clock skew, while `not_after` remains
+Ed25519 public keys, and relay-challenge X25519 public keys. The shared client
+allows at most 300 seconds of future `not_before` clock skew, while `not_after` remains
 exclusive.
+
+The same bootstrap verifier serves desktop, mobile (`op-engine-ffi`), and the
+web daemon through `op-collab-host`. Existing seven-day snapshots still verify
+until their original signed expiry; increasing the maximum never revives an
+expired snapshot. Clients with the old seven-day maximum must be upgraded
+before publishing a longer snapshot. The envelope version, signing domain,
+pinned roots, signature verification, generation checks, and 300-second future
+skew limit do not change. The SSO union-policy verifier in `op-auth-bridge`
+likewise accepts at most 90 days, but retains its stricter `not_before <= now`
+check with no future skew allowance.
+
+A longer signed window increases how long a captured snapshot or policy can
+remain usable by a client that has not observed a newer generation. Expiry,
+signature verification, and persisted generation floors remain required;
+the longer ceiling does not extend an artifact's signed `not_after` value.
+Renewal must issue a new generation before the existing signed expiry, and
+operators must account for old clients before activating the 90-day profile.
+
+Release order for the 90-day migration:
+
+1. Publish an official OpenPencil revision and client packages containing both
+   90-day verifiers. Passing source compatibility tests does not demonstrate
+   that customers have installed the upgraded desktop or mobile clients.
+2. Update `dsh-openpencil`'s `vendor/openpencil` submodule to that published
+   revision. At the 2026-10-21 audit, its pinned revision was
+   `20cf4316a4a4f56a653cadf627fb44c96bee09d2`, whose bootstrap and union-policy
+   verifiers still cap validity at seven days. DSH builds its own
+   `op-host-web-server` from this submodule, so upgrading another OpenPencil
+   installation does not update the bundled daemon.
+3. Rebuild, verify, and publish all six DSH runtime packages from the upgraded
+   submodule: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`,
+   `win32-arm64`, and `win32-x64`. Confirm the installed packaged daemons and
+   other supported clients use the compatible release.
+4. Only then publish new server-side bootstrap and union-policy generations
+   with the 90-day window. Until client upgrades are complete, keep published
+   artifacts within the old seven-day ceiling. This checklist does not select
+   an unpublished source revision or authorize changing a release pin without
+   an official release.
 
 An overseas guest joining a signed `home_region=cn` invite therefore selects
 the complete CN entry from that snapshot. GeoDNS or an audited edge may land

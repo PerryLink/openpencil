@@ -60,7 +60,7 @@ const MAX_KEY_ID_BYTES: usize = 64;
 const MAX_RELAY_KEY_ID_BYTES: usize = 30;
 const MAX_URL_BYTES: usize = 2_048;
 const MAX_CLOCK_SKEW_SECS: u64 = 300;
-const MAX_VALIDITY_SECS: u64 = 7 * 24 * 60 * 60;
+const MAX_VALIDITY_SECS: u64 = 90 * 24 * 60 * 60;
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 const MAX_UNIX_SECOND: u64 = 253_402_300_799;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -758,3 +758,7 @@ mod tests;
 #[cfg(test)]
 #[path = "relay_bootstrap_root_tests.rs"]
 mod root_tests;
+
+#[cfg(test)]
+#[path = "relay_bootstrap_validity_tests.rs"]
+mod validity_tests;
