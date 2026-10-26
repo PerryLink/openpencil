@@ -345,6 +345,53 @@ fn decorations_inside_a_hand_drawn_map_and_small_map_shapes_are_left_alone() {
     );
 }
 
+/// astra-new2 a3: a film-lab detail hero whose prompt asks for a photo with
+/// a back control over it, and photos whose scene merely contains a map.
+#[test]
+fn a_photo_prompt_never_turns_its_image_into_a_map() {
+    for (name, query, prompt) in [
+        (
+            "Portra 400 黄昏街景扫描",
+            "dusk street film",
+            "A photographic Kodak Portra 400 film scan of a quiet street at dusk, leaving room for a back navigation button",
+        ),
+        (
+            "trail-hero",
+            "hiker mountain trail",
+            "photo of a hiker reading a paper map on a mountain trail",
+        ),
+        (
+            "城市漫步封面",
+            "城市街道",
+            "实拍城市街角，行人手持地图",
+        ),
+    ] {
+        let node: PenNode = serde_json::from_value(json!({
+            "type": "image", "id": "hero", "name": name, "src": "", "width": 375, "height": 300,
+            "imageSearchQuery": query, "imagePrompt": prompt
+        }))
+        .expect("valid image");
+        assert!(!is_map_placeholder_candidate(&node), "{name} is a photo");
+    }
+    // A slot whose name or query asks for a map is still one, photo words or not.
+    for (name, query, prompt) in [
+        (
+            "store-location-map",
+            "",
+            "photo-real map of the neighbourhood",
+        ),
+        ("门店位置", "city map", "photographic aerial view"),
+        ("route-preview", "", "illustrated city map with a route"),
+    ] {
+        let node: PenNode = serde_json::from_value(json!({
+            "type": "image", "id": "map", "name": name, "src": "", "width": 327, "height": 200,
+            "imageSearchQuery": query, "imagePrompt": prompt
+        }))
+        .expect("valid image");
+        assert!(is_map_placeholder_candidate(&node), "{name} is a map");
+    }
+}
+
 /// "Mapo tofu" and "maple" start with "map" but are food. Measured 0923-0924:
 /// every 麻婆豆腐 dish photo and a Sichuan store hero became fake street maps.
 #[test]

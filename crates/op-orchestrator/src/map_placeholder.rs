@@ -73,7 +73,7 @@ fn collect_patches(
         "{context} {}",
         node.base().name.as_deref().unwrap_or_default()
     );
-    let map_named = inside_map_named || node.base().name.as_deref().is_some_and(has_map_name_word);
+    let map_named = inside_map_named || node.base().name.as_deref().is_some_and(has_map_word);
     if let Some(children) = node.children() {
         // A map image can sit behind authored controls in its owning viewport.
         // A sibling toolbar may wrap its buttons. Never cross into another
@@ -170,7 +170,7 @@ fn is_map_placeholder_candidate(node: &PenNode) -> bool {
                 )
         }
         PenNode::Frame(_) | PenNode::Rectangle(_) => {
-            node.base().name.as_deref().is_some_and(has_map_name_word)
+            node.base().name.as_deref().is_some_and(has_map_word)
                 && !node
                     .base()
                     .name
@@ -200,15 +200,29 @@ fn is_map_control_group(name: &str) -> bool {
 }
 
 /// Share map intent with photo-only cleanup before the image becomes a frame.
+///
+/// The slot's name and search query say what it is; its generation prompt
+/// only describes a picture. A prompt that asks for a photograph is a photo
+/// even when the scene holds a map ("a hiker reading a paper map"), so the
+/// prompt counts only when it is not photographic.
 pub(crate) fn is_map_image_intent(
     name: Option<&str>,
     query: Option<&str>,
     prompt: Option<&str>,
 ) -> bool {
-    [name, query, prompt]
-        .into_iter()
-        .flatten()
-        .any(has_map_word)
+    [name, query].into_iter().flatten().any(has_map_word)
+        || prompt.is_some_and(|prompt| has_map_word(prompt) && !is_photographic(prompt))
+}
+
+/// Words a photo prompt uses for itself; no map prompt needs them.
+fn is_photographic(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    ["照片", "实拍", "摄影", "photograph", "film scan", "shot on"]
+        .iter()
+        .any(|word| lower.contains(word))
+        || lower
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .any(|word| matches!(word, "photo" | "photos" | "photographic" | "photography"))
 }
 
 fn is_authored_layer_control(node: &PenNode) -> bool {
@@ -312,17 +326,11 @@ fn is_protected_node(node: &PenNode) -> bool {
     )
 }
 
+/// `navigation` used to count here too, but in an App brief it names the
+/// back control laid over a hero photo: astra-new2's film-lab detail page
+/// (back button on its dusk street scan) lost the photo to a fake street map
+/// in both drafts.
 fn has_map_word(value: &str) -> bool {
-    let lower = value.to_lowercase();
-    lower.contains("地图")
-        || lower.contains("路线图")
-        || lower.contains("route map")
-        || lower
-            .split(|character: char| !character.is_ascii_alphanumeric())
-            .any(|word| word == "navigation" || is_map_token(word))
-}
-
-fn has_map_name_word(value: &str) -> bool {
     let lower = value.to_lowercase();
     lower.contains("地图")
         || lower.contains("路线图")
