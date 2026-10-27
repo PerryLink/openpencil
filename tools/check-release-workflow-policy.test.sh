@@ -100,6 +100,14 @@ elif str(mode) == "ios-matrix-untrusted-key":
 elif str(mode) == "rust-skia-force":
     old = "[[ -z ${FORCE_SKIA_BINARIES_DOWNLOAD:-} && ${SKIA_BINARIES_URL:-} == file://* ]]"
     new = "[[ ${FORCE_SKIA_BINARIES_DOWNLOAD:-} == 1 && ${SKIA_BINARIES_URL:-} == file://* ]]"
+elif str(mode) in ("angle-bash-continuation", "angle-architecture-binding", "angle-target-binding"):
+    old = "& tools/stage-pinned-angle.ps1 -Architecture '${{ matrix.arch }}' -Target '${{ matrix.target }}'"
+    if str(mode) == "angle-bash-continuation":
+        new = old.replace(" -Architecture", " " + "\\" + "\n            -Architecture")
+    elif str(mode) == "angle-architecture-binding":
+        new = old.replace("${{ matrix.arch }}", "x64")
+    else:
+        new = old.replace("${{ matrix.target }}", "x86_64-pc-windows-msvc")
 elif str(mode) == "ios-only-input-default":
     old = """      ios_app_store_only:
         description: Run only the iOS App Store / TestFlight lane
@@ -213,6 +221,7 @@ case ${1-} in
             auth-only-secrets auth-only-normal-bypass \
             ios-only-ios-gate ios-only-build-bypass ios-only-release-bypass \
             vcredist-workflow-define vcredist-toolset-gate \
+            angle-bash-continuation angle-architecture-binding angle-target-binding \
             vcredist-scoop-cli-bypass vcredist-scoop-skip-postcheck; do
             fixture=$temporary/rust-$mutation.yml
             mutate "$repo_root/.github/workflows/rust-release.yml" "$fixture" "$mutation"

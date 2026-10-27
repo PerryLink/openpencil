@@ -503,8 +503,7 @@ jobs:
         shell: pwsh
         run: |
           & tools/stage-pinned-angle.ps1 -SelfTest
-          & tools/stage-pinned-angle.ps1 \
-            -Architecture '${{ matrix.arch }}' -Target '${{ matrix.target }}'
+          & tools/stage-pinned-angle.ps1 -Architecture '${{ matrix.arch }}' -Target '${{ matrix.target }}'
       - name: Stage pinned Microsoft Visual C++ Redistributable (windows)
         if: runner.os == 'Windows'
         shell: pwsh

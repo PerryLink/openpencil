@@ -209,11 +209,24 @@ unless build_steps.index(cargo_bundle) < build_steps.index(certificate_import)
   raise "cargo-bundle must be installed before signing credentials are imported"
 end
 
+angle_steps = build_steps.select { |step| step["name"] == "Stage ANGLE DLLs (windows)" }
+angle_run = <<~'ANGLE'
+  & tools/stage-pinned-angle.ps1 -SelfTest
+  & tools/stage-pinned-angle.ps1 -Architecture '${{ matrix.arch }}' -Target '${{ matrix.target }}'
+ANGLE
+unless angle_steps.length == 1 && angle_steps[0].fetch("if") == "runner.os == 'Windows'" &&
+    angle_steps[0].fetch("shell") == "pwsh" && angle_steps[0].fetch("run") == angle_run
+  raise "ANGLE staging must self-test and pass both matrix arguments in one PowerShell command"
+end
+
 vcredist = build_steps.find do |step|
   step["name"] == "Stage pinned Microsoft Visual C++ Redistributable (windows)"
 end
 nsis_package = build_steps.find { |step| step["name"] == "Package NSIS installer (windows)" }
 raise "missing pinned VC++ Redistributable staging" unless vcredist && nsis_package
+unless build_steps.index(angle_steps[0]) < build_steps.index(nsis_package)
+  raise "ANGLE staging must precede Windows packaging"
+end
 unless vcredist.fetch("if") == "runner.os == 'Windows'" && vcredist.fetch("shell") == "pwsh"
   raise "VC++ Redistributable staging must remain Windows-only PowerShell"
 end
