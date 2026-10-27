@@ -17,6 +17,7 @@ release_builder=$script_dir/../scripts/build-rust-release-host.sh
 bash -n "$tool"
 bash -n "$release_builder"
 "$tool" --self-test
+python3 "$script_dir/pinned-release-tools-sha256.test.py"
 
 temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
