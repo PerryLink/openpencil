@@ -6,4 +6,4 @@ abi=4
 sha256=205f06e44fa9f4860271c08071e90b7add6489ec47d71fdccd1e51b18ef4bd0a
 hardening=op-auth-hardened-v1
 source_revision=53a787614102a7bff7f8b92662efd559a11ae686
-build_id=local-full-v0.8.5-20261027.a4.299ea9b4942b780c1e460d979ee183ad74ee5ee35a470dd01141f6e70760681b
+build_id=local-full-v0.8.5-20261027-r2.a4.6c0b9f168c1534a169f62a3bcb3a4da3daa3db32b25fbba467d0a0b683f2944e
