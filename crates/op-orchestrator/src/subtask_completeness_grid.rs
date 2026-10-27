@@ -51,7 +51,8 @@ pub(super) fn columns_only_shape(text: &str, expected: usize) -> Option<(usize, 
         .captures_iter(text)
         .filter_map(|captures| parse_count(captures.name("columns")?.as_str()))
         .find(|columns| (2..=12).contains(columns))?;
-    (expected > columns && expected.is_multiple_of(columns)).then_some((expected / columns, columns))
+    (expected > columns && expected.is_multiple_of(columns))
+        .then_some((expected / columns, columns))
 }
 
 /// "6 行 × 7 列", "6行7列", "6 rows × 7 columns", "7 columns × 6 rows": the
