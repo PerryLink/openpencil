@@ -596,6 +596,8 @@ require_literal 'snapshot_url=https://snapshot.ubuntu.com/ubuntu/20261027T000000
 require_literal 'Dir::Etc::sourcelist=$sources_file' "$workflow"
 require_literal 'Dir::Etc::sourceparts=-' "$workflow"
 require_literal '--print-uris update' "$workflow"
+require_literal 'Acquire::https::Pipeline-Depth=0' "$workflow"
+require_literal 'if sudo apt-get "${apt_options[@]}" --error-on=any update &&' "$workflow"
 require_literal 'if [[ $uri != "$snapshot_url"* ]]' "$workflow"
 require_literal 'install --yes --no-remove "${packages[@]}"' "$workflow"
 reject_literal '--allow-downgrades' "$workflow"

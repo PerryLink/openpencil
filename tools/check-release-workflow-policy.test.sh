@@ -48,6 +48,12 @@ elif str(mode) == "apt-removal-allowed":
 elif str(mode) == "apt-downgrade-allowed":
     old = 'install --yes --no-remove "${packages[@]}"'
     new = 'install --yes --allow-downgrades --no-remove "${packages[@]}"'
+elif str(mode) == "apt-partial-update-allowed":
+    old = '"${apt_options[@]}" --error-on=any update'
+    new = '"${apt_options[@]}" update'
+elif str(mode) == "apt-pipelining-enabled":
+    old = 'Acquire::https::Pipeline-Depth=0'
+    new = 'Acquire::https::Pipeline-Depth=10'
 elif str(mode) == "direct-cargo-cli":
     old = '''tools/pinned-release-tools.sh cargo-cli wasm-bindgen-cli \\
             "$RUNNER_TEMP/wasm-bindgen-cli-0.2.117"'''
@@ -216,6 +222,7 @@ case ${1-} in
         for mutation in \
             mutable-action broad-permission job-secret mutable-package-assets \
             mutable-apt-source stale-apt-snapshot apt-removal-allowed apt-downgrade-allowed \
+            apt-partial-update-allowed apt-pipelining-enabled \
             direct-cargo-cli ios-only-input-default \
             auth-only-input-default auth-only-version-bypass auth-only-broad-gate \
             auth-only-secrets auth-only-normal-bypass \
