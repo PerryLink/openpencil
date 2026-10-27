@@ -37,8 +37,17 @@ elif str(mode) == "mutable-package-assets":
     old = "tools/package-manager-handoff.sh download"
     new = 'gh release download "$GITHUB_REF_NAME"'
 elif str(mode) == "mutable-apt-source":
-    old = "https://snapshot.ubuntu.com/ubuntu/20260801T000000Z/"
+    old = "https://snapshot.ubuntu.com/ubuntu/20261027T000000Z/"
     new = "http://ports.ubuntu.com/ubuntu-ports/"
+elif str(mode) == "stale-apt-snapshot":
+    old = "https://snapshot.ubuntu.com/ubuntu/20261027T000000Z/"
+    new = "https://snapshot.ubuntu.com/ubuntu/20260801T000000Z/"
+elif str(mode) == "apt-removal-allowed":
+    old = 'install --yes --no-remove "${packages[@]}"'
+    new = 'install --yes "${packages[@]}"'
+elif str(mode) == "apt-downgrade-allowed":
+    old = 'install --yes --no-remove "${packages[@]}"'
+    new = 'install --yes --allow-downgrades --no-remove "${packages[@]}"'
 elif str(mode) == "direct-cargo-cli":
     old = '''tools/pinned-release-tools.sh cargo-cli wasm-bindgen-cli \\
             "$RUNNER_TEMP/wasm-bindgen-cli-0.2.117"'''
@@ -198,7 +207,8 @@ case ${1-} in
         ruby "$repo_root/tools/check-auth-native-validation-workflow.test.rb"
         for mutation in \
             mutable-action broad-permission job-secret mutable-package-assets \
-            mutable-apt-source direct-cargo-cli ios-only-input-default \
+            mutable-apt-source stale-apt-snapshot apt-removal-allowed apt-downgrade-allowed \
+            direct-cargo-cli ios-only-input-default \
             auth-only-input-default auth-only-version-bypass auth-only-broad-gate \
             auth-only-secrets auth-only-normal-bypass \
             ios-only-ios-gate ios-only-build-bypass ios-only-release-bypass \

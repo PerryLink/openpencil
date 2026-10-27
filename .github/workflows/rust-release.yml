@@ -242,7 +242,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          snapshot_url=https://snapshot.ubuntu.com/ubuntu/20260801T000000Z/
+          snapshot_url=https://snapshot.ubuntu.com/ubuntu/20261027T000000Z/ # Matches the 20261012 runner libraries.
           sources_file=$RUNNER_TEMP/openpencil-release.sources
           apt_lists=$RUNNER_TEMP/openpencil-apt-lists
           cat > "$sources_file" <<EOF
@@ -285,7 +285,7 @@ jobs:
           )
           for attempt in 1 2 3 4; do
             if sudo apt-get "${apt_options[@]}" update && \
-              sudo apt-get "${apt_options[@]}" install --yes "${packages[@]}"; then
+              sudo apt-get "${apt_options[@]}" install --yes --no-remove "${packages[@]}"; then
               break
             fi
             if [[ "$attempt" == 4 ]]; then
