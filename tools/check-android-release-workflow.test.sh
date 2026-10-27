@@ -198,5 +198,7 @@ done
 printf 'check-android-release-workflow.test.sh: staging round-trip and %s malformed/failing outputs passed.\n' \
     "$staging_rejections"
 
+python3 "$script_dir/check-android-packaged-native.test.py"
+
 printf 'check-android-release-workflow.test.sh: %s fail-closed mutations passed.\n' \
     "$mutation_index"

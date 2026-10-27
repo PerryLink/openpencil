@@ -171,8 +171,14 @@ done
 
 canonical_prebuilt=$repo_root/crates/op-auth-bridge/prebuilt
 release_jni=$repo_root/packaging/android/app/src/release/jniLibs
+stripped_release_root=$repo_root/packaging/android/app/build/intermediates/stripped_native_libs/release
+stripped_jni=$stripped_release_root/stripReleaseDebugSymbols/out/lib
 [[ ! -e "$release_jni" && ! -L "$release_jni" ]] || {
     printf 'error: refusing to replace an existing Android Release jniLibs directory\n' >&2
+    exit 1
+}
+[[ ! -e "$stripped_release_root" && ! -L "$stripped_release_root" ]] || {
+    printf 'error: Android Release requires fresh Gradle stripped-native outputs\n' >&2
     exit 1
 }
 work_root=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
@@ -280,6 +286,20 @@ verify_elf_16k() {
     }
 }
 
+verify_jni_payload() {
+    local library=$1 label=$2
+    require_regular_file "$library"
+    verify_elf_16k "$library"
+    LC_ALL=C grep -aFq "$relay_bootstrap_cn" "$library" || {
+        printf 'error: CN collaboration bootstrap URL is missing from %s\n' "$label" >&2
+        exit 1
+    }
+    LC_ALL=C grep -aFq "$relay_bootstrap_global" "$library" || {
+        printf 'error: global collaboration bootstrap URL is missing from %s\n' "$label" >&2
+        exit 1
+    }
+}
+
 build_target() {
     local target=$1 abi=$2 skia_url=$3 clang_prefix=$4
     local env_target=${target//-/_}
@@ -306,16 +326,7 @@ build_target() {
             --features gl,editor,pinned-skia-binaries
     OP_AUTH_CARGO_TARGET=$target \
         "$repo_root/tools/check-op-auth-cargo-build.sh"
-    require_regular_file "$so"
-    verify_elf_16k "$so"
-    LC_ALL=C grep -aFq "$relay_bootstrap_cn" "$so" || {
-        printf 'error: CN collaboration bootstrap URL is missing from %s\n' "$target" >&2
-        exit 1
-    }
-    LC_ALL=C grep -aFq "$relay_bootstrap_global" "$so" || {
-        printf 'error: global collaboration bootstrap URL is missing from %s\n' "$target" >&2
-        exit 1
-    }
+    verify_jni_payload "$so" "$target"
     mkdir -p "$release_jni/$abi"
     install -m 0755 "$so" "$release_jni/$abi/libop_engine_jni.so"
 }
@@ -375,6 +386,26 @@ version_code=$(sed -n 's/^versionCode=//p' <<< "$version_metadata")
     exit 1
 }
 
+# AGP strips JNI after Cargo builds it. Bind the handoff to those canonical
+# shipping bytes, and prove that both packages contain exactly that output.
+for abi in arm64-v8a x86_64; do
+    verify_jni_payload "$stripped_jni/$abi/libop_engine_jni.so" "$abi packaged JNI"
+done
+native_audit=$temp_dir/native-inventory-audit.json
+native_hashes=$(python3 "$repo_root/tools/check-android-packaged-native.py" \
+    --raw-jni-root "$release_jni" --stripped-jni-root "$stripped_jni" \
+    --apk "$unsigned_apk" --aab "$unsigned_aab" --audit-output "$native_audit")
+arm64_sha=$(sed -n 's/^arm64_v8a_sha256=//p' <<< "$native_hashes")
+x86_64_sha=$(sed -n 's/^x86_64_sha256=//p' <<< "$native_hashes")
+[[ "$arm64_sha" =~ ^[0-9a-f]{64}$ && "$x86_64_sha" =~ ^[0-9a-f]{64}$ \
+    && "$native_hashes" == "arm64_v8a_sha256=$arm64_sha"$'\n'"x86_64_sha256=$x86_64_sha" ]] || {
+    printf 'error: packaged JNI inventory returned invalid hashes\n' >&2
+    exit 1
+}
+# Retain raw-to-shipping digest evidence in the build log, separate from the
+# unchanged 13-line handoff manifest consumed by the protected signer.
+cat "$native_audit"
+
 mkdir -p "$ANDROID_UNSIGNED_OUTPUT_DIR"
 apk_name=OpenPencil-$workspace_version-android-unsigned.apk
 aab_name=OpenPencil-$workspace_version-android-unsigned.aab
@@ -382,8 +413,6 @@ install -m 0644 "$unsigned_apk" "$ANDROID_UNSIGNED_OUTPUT_DIR/$apk_name"
 install -m 0644 "$unsigned_aab" "$ANDROID_UNSIGNED_OUTPUT_DIR/$aab_name"
 apk_sha=$(sha256_file "$ANDROID_UNSIGNED_OUTPUT_DIR/$apk_name")
 aab_sha=$(sha256_file "$ANDROID_UNSIGNED_OUTPUT_DIR/$aab_name")
-arm64_sha=$(sha256_file "$release_jni/arm64-v8a/libop_engine_jni.so")
-x86_64_sha=$(sha256_file "$release_jni/x86_64/libop_engine_jni.so")
 auth_matrix_sha=$(sha256_file "$staged_prebuilt/RELEASE-MANIFEST")
 cat > "$ANDROID_UNSIGNED_OUTPUT_DIR/ANDROID-RELEASE-MANIFEST" <<EOF
 format=openpencil-android-unsigned-v2
