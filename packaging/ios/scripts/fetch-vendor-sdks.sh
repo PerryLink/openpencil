@@ -48,7 +48,8 @@ fetch "AFServiceSDK" "$alipay_url" "$alipay_sha256" "AFServiceSDK.framework"
 # WeChat ships an xcframework; device builds link the ios-arm64 slice like
 # the other vendored frameworks (simulator builds compile the Swift stubs).
 wechat_url="https://dldir1.qq.com/WechatWebDev/opensdk/XCFramework/OpenSDK2.0.7.zip"
-wechat_sha256="5f258a03a91950ed1f0197555aafb2127ad613f8f79413d45751da36eacbf699"
+# Tencent republished SDK 2.0.7 on 2026-09-28; pin the reviewed archive bytes.
+wechat_sha256="d9f9efcbbf26781e821769fa0faa5a61e46bd740180edc7d3152feec834099c9"
 if [[ ! -d "$vendor_dir/WechatOpenSDK.framework" ]]; then
   archive="$vendor_dir/WechatOpenSDK.zip"
   echo "fetching WechatOpenSDK from $wechat_url"
