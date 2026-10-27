@@ -46,7 +46,9 @@ internal class OpSurfaceViewImeCoordinator(private val view: OpSurfaceView) {
             return
         }
         val focused = OpNative.nativeEditorImeFocused(view.editorEngine())
-        imeBack?.setActive(focused && imeVisible)
+        if (Build.VERSION.SDK_INT >= 33) {
+            imeBack?.setActive(focused && imeVisible)
+        }
         if (focused && !imeWasFocused) {
             imeShowNeeded = true
             imeShowAttempts = 0
@@ -132,7 +134,9 @@ internal class OpSurfaceViewImeCoordinator(private val view: OpSurfaceView) {
     }
 
     fun releaseBackDispatcher() {
-        imeBack?.setActive(false)
+        if (Build.VERSION.SDK_INT >= 33) {
+            imeBack?.setActive(false)
+        }
     }
 
     fun teardown() {
