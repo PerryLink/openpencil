@@ -15,6 +15,7 @@ if [ ! -d "$source_root" ] || [ -L "$source_root" ]; then
     printf 'error: artifact download root must be a real directory: %s\n' "$source_root" >&2
     exit 1
 fi
+source_root=$(CDPATH='' cd "$source_root" && pwd -P)
 if [ -e "$release_root" ] || [ -L "$release_root" ]; then
     printf 'error: release output must not already exist: %s\n' "$release_root" >&2
     exit 1
@@ -28,6 +29,41 @@ if find "$source_root" -type l -print -quit | grep -q .; then
     exit 1
 fi
 
+# These are inputs to platform VSIX packages, not standalone release assets.
+# Validate their exact producer layout before excluding any files from collection.
+while IFS= read -r -d '' handoff; do
+    handoff_name=${handoff##*/}
+    case "$handoff_name" in
+        openpencil-daemon-linux-aarch64 | openpencil-daemon-linux-x86_64 | \
+        openpencil-daemon-macos-aarch64 | openpencil-daemon-macos-x86_64)
+            daemon_name=op-host-web-server
+            ;;
+        openpencil-daemon-windows-aarch64 | openpencil-daemon-windows-x86_64)
+            daemon_name=op-host-web-server.exe
+            ;;
+        *)
+            printf 'error: unrecognized internal daemon artifact: %s\n' "$handoff_name" >&2
+            exit 1
+            ;;
+    esac
+    if [ "${handoff%/*}" != "$source_root" ] || [ ! -d "$handoff" ]; then
+        printf 'error: internal daemon artifact must be a top-level directory: %s\n' "$handoff" >&2
+        exit 1
+    fi
+    daemon_entries=0
+    while IFS= read -r -d '' entry; do
+        daemon_entries=$((daemon_entries + 1))
+        if [ "$entry" != "$handoff/$daemon_name" ] || [ ! -f "$entry" ] || [ ! -s "$entry" ]; then
+            printf 'error: unexpected internal daemon artifact contents: %s\n' "$handoff" >&2
+            exit 1
+        fi
+    done < <(find "$handoff" -mindepth 1 -maxdepth 1 -print0)
+    if [ "$daemon_entries" -ne 1 ]; then
+        printf 'error: internal daemon artifact must contain exactly one %s: %s\n' "$daemon_name" "$handoff" >&2
+        exit 1
+    fi
+done < <(find "$source_root" -mindepth 1 -name 'openpencil-daemon-*' -print0)
+
 temporary=$(mktemp -d "${release_root}.tmp.XXXXXX")
 cleanup() {
     rm -rf "$temporary"
@@ -36,6 +72,10 @@ trap cleanup EXIT HUP INT TERM
 
 copied=0
 while IFS= read -r -d '' artifact; do
+    relative=${artifact#"$source_root"/}
+    case "${relative%%/*}" in
+        openpencil-daemon-*) continue;; # Exact directory names and contents checked above.
+    esac
     name=${artifact##*/}
     case "$name" in
         *.tar.gz | *.zip | *.dmg | *.exe | *.AppImage | *.deb | *.tgz | *.vsix | *.apk | *.aab | SHA256SUMS.android.txt)
