@@ -129,9 +129,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          aarch64_url=$(GITHUB_ENV= tools/pinned-release-tools.sh skia android \
+          stage_skia_url() {
+            local assignment
+            assignment=$(GITHUB_ENV= tools/pinned-release-tools.sh skia android "$1" "$2") || return 1
+            [[ $assignment == SKIA_BINARIES_URL=file:///?* \
+              && $assignment != *$'\n'* && $assignment != *$'\r'* ]] || {
+              echo "::error::Skia staging must return one absolute file URL assignment" >&2
+              return 1
+            }
+            printf '%s\n' "${assignment#SKIA_BINARIES_URL=}"
+          }
+          aarch64_url=$(stage_skia_url \
             aarch64-linux-android "$RUNNER_TEMP/skia-aarch64-linux-android")
-          x86_64_url=$(GITHUB_ENV= tools/pinned-release-tools.sh skia android \
+          x86_64_url=$(stage_skia_url \
             x86_64-linux-android "$RUNNER_TEMP/skia-x86_64-linux-android")
           bundletool_jar=$(tools/pinned-release-tools.sh bundletool \
             "$RUNNER_TEMP/bundletool-1.18.3")
